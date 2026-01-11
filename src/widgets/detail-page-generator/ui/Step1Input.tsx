@@ -1,5 +1,6 @@
 import React from "react";
 import { ProductInfo, PageLength } from "@/shared/types/types";
+import { ReferenceImageUpload } from "@/features/reference-image-upload";
 
 interface Props {
   info: ProductInfo;
@@ -8,20 +9,6 @@ interface Props {
 }
 
 const Step1Input: React.FC<Props> = ({ info, setInfo, onNext }) => {
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setInfo((prev) => ({
-          ...prev,
-          referenceImage: reader.result as string,
-        }));
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   const toggleSelection = (
     field: "targetGender" | "targetAge",
     value: string
@@ -125,24 +112,12 @@ const Step1Input: React.FC<Props> = ({ info, setInfo, onNext }) => {
       </div>
 
       <div className="space-y-4">
-        <label className="block text-sm font-semibold text-slate-700">
-          레퍼런스 제품 이미지 (선택)
-        </label>
-        <div className="flex items-center gap-4">
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
-            className="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-          />
-          {info.referenceImage && (
-            <img
-              src={info.referenceImage}
-              alt="Ref"
-              className="w-16 h-16 object-cover rounded-lg border border-slate-200"
-            />
-          )}
-        </div>
+        <ReferenceImageUpload
+          value={info.referenceImages ?? []}
+          onChange={(imgs) =>
+            setInfo((prev) => ({ ...prev, referenceImages: imgs }))
+          }
+        />
       </div>
 
       <div className="space-y-4">

@@ -67,7 +67,7 @@ export const generateImage = async (
   prompt: string,
   modelType: ModelType,
   aspectRatio: "9:16" | "1:1",
-  referenceImage?: string
+  referenceImages?: string[]
 ): Promise<string | null> => {
   const ai = getAI();
   
@@ -81,14 +81,27 @@ export const generateImage = async (
 
   const parts: any[] = [{ text: `${prompt}. High-quality ecommerce product photography. Clean background. Professional lighting.` }];
   
-  if (referenceImage) {
-    parts.push({
-      inlineData: {
-        data: referenceImage.split(',')[1],
-        mimeType: 'image/png'
-      }
-    });
+  // ✅ 여러 장 첨부
+  if (referenceImages?.length) {
+    for (const dataUrl of referenceImages) {
+      if (!dataUrl) continue;
+
+      // data:image/png;base64,AAAA...
+      const match = dataUrl.match(/^data:(.+?);base64,(.+)$/);
+      if (!match) continue;
+
+      const mimeType = match[1] || "image/png";
+      const base64 = match[2];
+
+      parts.push({
+        inlineData: {
+          data: base64,
+          mimeType,
+        },
+      });
+    }
   }
+
 
   try {
     const response = await ai.models.generateContent({

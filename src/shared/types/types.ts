@@ -29,7 +29,7 @@ export interface ProductInfo {
   targetGender: string[];
   targetAge: string[];
   pageLength: PageLength;
-  referenceImage?: string; // base64
+  referenceImages?: string[]; // base64
 }
 
 export interface ThumbnailConfig {
@@ -38,5 +38,5 @@ export interface ThumbnailConfig {
   style: 'Clean' | 'Lifestyle' | 'Creative';
   hasPerson: boolean;
   textPosition: 'top' | 'center' | 'bottom';
-  referenceImage?: string;
+  referenceImages?: string[];
 }

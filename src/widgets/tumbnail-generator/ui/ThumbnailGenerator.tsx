@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { ReferenceImageUpload } from "@/features/reference-image-upload";
 import { ThumbnailConfig, ModelType } from "@/shared/types/types";
 import { generateImage } from "@/shared/api/gemini/geminiService";
 
@@ -9,24 +10,12 @@ const ThumbnailGenerator: React.FC = () => {
     style: "Clean",
     hasPerson: false,
     textPosition: "bottom",
+    referenceImages: [],
   });
+
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [modelType, setModelType] = useState<ModelType>(ModelType.FREE);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setConfig((prev) => ({
-          ...prev,
-          referenceImage: reader.result as string,
-        }));
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
   const handleGenerate = async () => {
     if (!config.productName) return;
@@ -47,7 +36,7 @@ const ThumbnailGenerator: React.FC = () => {
         prompt,
         modelType,
         "1:1",
-        config.referenceImage
+        config.referenceImages
       );
       setResultImage(imageUrl);
     } catch (e) {
@@ -164,13 +153,11 @@ const ThumbnailGenerator: React.FC = () => {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700">
-              제품 원본 사진 업로드 (선택)
-            </label>
-            <input
-              type="file"
-              onChange={handleFileChange}
-              className="text-xs text-slate-500 w-full"
+            <ReferenceImageUpload
+              value={config.referenceImages ?? []}
+              onChange={(imgs) =>
+                setConfig((prev) => ({ ...prev, referenceImages: imgs }))
+              }
             />
           </div>
         </div>

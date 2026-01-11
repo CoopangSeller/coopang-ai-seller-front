@@ -54,7 +54,7 @@ const DetailPlanner: React.FC = () => {
           updatedSegments[i].visualPrompt,
           modelType,
           "9:16",
-          info.referenceImage
+          info.referenceImages
         );
 
         if (imageUrl) {

@@ -1,0 +1,7 @@
+{
+  "name": "Copy of AI Sync Club Thumbnail & Detail Page Builder",
+  "description": "A high-performance ecommerce tool for creating AI-powered product thumbnails and strategic long-form detail pages using Gemini models.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

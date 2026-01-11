@@ -11,6 +11,9 @@
   "dependencies": {
     "@google/genai": "^1.35.0",
     "@tailwindcss/vite": "^4.1.18",
+    "file-saver": "^2.0.5",
+    "html-to-image": "^1.11.13",
+    "jszip": "^3.10.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-router-dom": "^7.12.0",

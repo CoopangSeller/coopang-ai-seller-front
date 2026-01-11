@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { PageLength, DetailImageSegment, ProductInfo, ModelType } from "../types";
+import { PageLength, DetailImageSegment, ProductInfo, ModelType } from "../../types/types";
 
 // Helper to get GoogleGenAI instance
 const getAI = () => {

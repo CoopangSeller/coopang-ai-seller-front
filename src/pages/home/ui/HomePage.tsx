@@ -5,7 +5,7 @@ import { Footer } from "@/widgets/layout/";
 
 type Tab = "detail" | "thumbnail";
 
-const Home: React.FC = () => {
+const HomePage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>("detail");
 
   return (
@@ -76,4 +76,4 @@ const Home: React.FC = () => {
   );
 };
 
-export default Home;
+export default HomePage;

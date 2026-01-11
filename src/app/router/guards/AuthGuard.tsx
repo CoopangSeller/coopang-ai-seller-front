@@ -1,14 +1,15 @@
-// import { Navigate } from "react-router-dom";
+import React from "react";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
+// import { isAdminAuthed } from "@/shared/session/adminSession";
 
-// const isAuthenticated = () => {
-//   return !!localStorage.getItem("token");
-// };
+const AuthGuard: React.FC = () => {
+  const loc = useLocation();
 
-// const AuthGuard = ({ children }: { children: JSX.Element }) => {
-//   if (!isAuthenticated()) {
-//     return <Navigate to="/login" replace />;
-//   }
-//   return children;
-// };
+  if (true) {
+    return <Navigate to="/login" replace state={{ from: loc.pathname }} />;
+  }
 
-// export default AuthGuard;
+  return <Outlet />;
+};
+
+export default AuthGuard;

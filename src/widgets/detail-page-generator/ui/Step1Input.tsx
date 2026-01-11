@@ -1,6 +1,6 @@
 import React from "react";
 import { ProductInfo, PageLength } from "@/shared/types/types";
-import { ReferenceImageUpload } from "@/features/reference-image-upload";
+import { ReferenceImageUpload } from "@/features/file/image-upload";
 
 interface Props {
   info: ProductInfo;

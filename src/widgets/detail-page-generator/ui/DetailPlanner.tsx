@@ -1,7 +1,10 @@
 import React, { useRef, useState } from "react";
-import * as htmlToImage from "html-to-image";
-import JSZip from "jszip";
-import { saveAs } from "file-saver";
+
+import {
+  ExportButtons,
+  ExportProgressOverlay,
+  useZipExport,
+} from "@/features/file/file-export";
 
 import {
   ProductInfo,
@@ -9,6 +12,7 @@ import {
   DetailImageSegment,
   ModelType,
 } from "@/shared/types/types";
+
 import Step1Input from "./Step1Input";
 import {
   planDetailPage,
@@ -36,18 +40,8 @@ const DetailPlanner: React.FC = () => {
   // Step3 캡처 대상 refs
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-  // 다운로드 진행 상태
-  const [downloading, setDownloading] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState({
-    current: 0,
-    total: 0,
-    phase: "idle" as "idle" | "capture" | "zip" | "done",
-  });
-
-  // UI 프레임 양보(멈춘 느낌 방지)
-  const nextFrame = () =>
-    new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  // ✅ file-export feature (다운로드 상태/진행률/실행)
+  const { downloading, progress, exportZip } = useZipExport();
 
   const handlePlan = async () => {
     setLoading(true);
@@ -105,94 +99,6 @@ const DetailPlanner: React.FC = () => {
     const newSegments = [...segments];
     newSegments[index] = { ...newSegments[index], [field]: value };
     setSegments(newSegments);
-  };
-
-  // -----------------------
-  // ZIP 다운로드(한방에)
-  // -----------------------
-  const downloadZip = async (format: "webp" | "jpg") => {
-    const scale = 2; // 선명도/속도 밸런스 (더 빠르게: 1.5)
-    const webpQuality = 0.9; // 더 빠르게/저용량: 0.85
-    const jpgQuality = 0.95;
-
-    const zip = new JSZip();
-    const folderName = info.name?.trim()
-      ? info.name.trim().replace(/[\\/:*?"<>|]/g, "_")
-      : "detail_pages";
-    const folder = zip.folder(folderName) ?? zip;
-
-    try {
-      setDownloading(true);
-
-      // 캡처 대상만 추림(이미지가 생성된 페이지)
-      const targets = pageRefs.current
-        .map((node, i) => ({ node, i }))
-        .filter((x) => x.node && segments[x.i]?.imageUrl);
-
-      setDownloadProgress({
-        current: 0,
-        total: targets.length,
-        phase: "capture",
-      });
-
-      // 렌더 안정화
-      await nextFrame();
-      await sleep(30);
-
-      for (let k = 0; k < targets.length; k++) {
-        const { node, i } = targets[k];
-        if (!node) continue;
-
-        setDownloadProgress((p) => ({
-          ...p,
-          current: k + 1,
-          phase: "capture",
-        }));
-
-        // UI 반응성 유지
-        await nextFrame();
-
-        let dataUrl: string;
-        if (format === "webp") {
-          const canvas = await htmlToImage.toCanvas(node, {
-            pixelRatio: scale,
-            backgroundColor: "#ffffff",
-          });
-          dataUrl = canvas.toDataURL("image/webp", webpQuality);
-        } else {
-          dataUrl = await htmlToImage.toJpeg(node, {
-            pixelRatio: scale,
-            quality: jpgQuality,
-            backgroundColor: "#ffffff",
-          });
-        }
-
-        const blob = await (await fetch(dataUrl)).blob();
-        const ext = format === "webp" ? "webp" : "jpg";
-        const fileName = `detail_${String(i + 1).padStart(2, "0")}.${ext}`;
-        folder.file(fileName, blob);
-      }
-
-      setDownloadProgress((p) => ({ ...p, phase: "zip" }));
-      await nextFrame();
-
-      const zipBlob = await zip.generateAsync({
-        type: "blob",
-        compression: "DEFLATE",
-        compressionOptions: { level: 6 },
-      });
-
-      saveAs(zipBlob, `${folderName}_${format}.zip`);
-
-      setDownloadProgress((p) => ({ ...p, phase: "done" }));
-      await sleep(200);
-    } catch (e) {
-      console.error(e);
-      alert("ZIP 생성/다운로드 중 오류가 발생했습니다.");
-    } finally {
-      setDownloading(false);
-      setDownloadProgress({ current: 0, total: 0, phase: "idle" });
-    }
   };
 
   return (
@@ -312,21 +218,19 @@ const DetailPlanner: React.FC = () => {
                 기획안으로 돌아가기
               </button>
 
-              <button
+              <ExportButtons
                 disabled={downloading}
-                onClick={() => downloadZip("webp")}
-                className="px-6 py-2 text-sm bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {downloading ? "ZIP 생성 중..." : "ZIP 저장 (WebP)"}
-              </button>
-
-              <button
-                disabled={downloading}
-                onClick={() => downloadZip("jpg")}
-                className="px-6 py-2 text-sm bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-900 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {downloading ? "ZIP 생성 중..." : "ZIP 저장 (JPG)"}
-              </button>
+                onExport={(format) =>
+                  exportZip(format, {
+                    nodes: pageRefs.current,
+                    shouldInclude: (i) => !!segments[i]?.imageUrl,
+                    baseName: info.name || "detail_pages",
+                    scale: 2,
+                    webpQuality: 0.9,
+                    jpgQuality: 0.95,
+                  })
+                }
+              />
             </div>
           </div>
 
@@ -373,56 +277,8 @@ const DetailPlanner: React.FC = () => {
             * ZIP 저장은 여러 장을 한 번에 내려받기 위한 방식입니다.
           </div>
 
-          {/* 다운로드 진행 오버레이 */}
-          {downloading && (
-            <div className="fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center">
-              <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-base font-bold text-slate-800">
-                    다운로드 준비 중
-                  </h3>
-                  <span className="text-xs text-slate-500">
-                    {downloadProgress.phase === "capture"
-                      ? "캡처/인코딩"
-                      : downloadProgress.phase === "zip"
-                      ? "압축 중"
-                      : "완료"}
-                  </span>
-                </div>
-
-                <div className="text-sm text-slate-600">
-                  {downloadProgress.total > 0 ? (
-                    <>
-                      {downloadProgress.current} / {downloadProgress.total}{" "}
-                      페이지 처리 중...
-                    </>
-                  ) : (
-                    <>대상 페이지를 준비 중...</>
-                  )}
-                </div>
-
-                <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-3 bg-blue-600 rounded-full transition-all"
-                    style={{
-                      width:
-                        downloadProgress.total > 0
-                          ? `${Math.round(
-                              (downloadProgress.current /
-                                downloadProgress.total) *
-                                100
-                            )}%`
-                          : "10%",
-                    }}
-                  />
-                </div>
-
-                <div className="text-xs text-slate-500">
-                  페이지 수가 많거나 고해상도일수록 시간이 더 걸립니다.
-                </div>
-              </div>
-            </div>
-          )}
+          {/* ✅ feature 오버레이 */}
+          <ExportProgressOverlay open={downloading} progress={progress} />
         </div>
       )}
 

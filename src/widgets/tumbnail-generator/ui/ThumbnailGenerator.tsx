@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ReferenceImageUpload } from "@/features/reference-image-upload";
+import { ReferenceImageUpload } from "@/features/file/image-upload";
 import { ThumbnailConfig, ModelType } from "@/shared/types/types";
 import { generateImage } from "@/shared/api/gemini/geminiService";
 

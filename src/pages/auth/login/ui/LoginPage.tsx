@@ -14,10 +14,6 @@ const LoginPage: React.FC = () => {
           </div>
 
           <LoginForm />
-
-          <div className="mt-6 text-xs text-slate-500">
-            계정이 없다면 관리자에게 문의하세요.
-          </div>
         </div>
 
         <div className="mt-4 text-center text-xs text-slate-400">

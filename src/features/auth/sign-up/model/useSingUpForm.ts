@@ -39,7 +39,7 @@ export function useSignupForm() {
         agreedTerms,
         agreedPrivacy,
       });
-      session.setToken(res.accessToken);
+      session.setAuth({ accessToken: res.accessToken, username: res.username });
       toastStore.push({ type: "success", title: "완료", message: "회원가입 되었습니다." });
       return true;
     } catch (e: any) {

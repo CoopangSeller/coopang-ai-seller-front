@@ -1,9 +1,23 @@
 import { useSyncExternalStore } from "react";
-import { clearAccessToken, getAccessToken, setAccessToken } from "../lib/token";
+import {
+  clearAccessToken,
+  clearUsername,
+  getAccessToken,
+  getUsername,
+  setAccessToken,
+  setUsername,
+} from "../lib/sessionStorage";
 
-type State = { accessToken: string | null };
+type State = {
+  accessToken: string | null;
+  username: string | null;
+};
 
-let state: State = { accessToken: getAccessToken() };
+let state: State = {
+  accessToken: getAccessToken(),
+  username: getUsername(),
+};
+
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -14,14 +28,28 @@ export const session = {
   getToken(): string | null {
     return state.accessToken;
   },
-  setToken(token: string) {
-    setAccessToken(token);
-    state = { accessToken: token };
+  getUsername(): string | null {
+    return state.username;
+  },
+
+  setAuth(payload: { accessToken: string; username: string }) {
+    setAccessToken(payload.accessToken);
+    setUsername(payload.username);
+    state = { accessToken: payload.accessToken, username: payload.username };
     emit();
   },
+
+  setToken(token: string) {
+    // refresh가 username을 안 내려주는 경우를 대비해 username 유지
+    setAccessToken(token);
+    state = { ...state, accessToken: token };
+    emit();
+  },
+
   clear() {
     clearAccessToken();
-    state = { accessToken: null };
+    clearUsername();
+    state = { accessToken: null, username: null };
     emit();
   },
 };

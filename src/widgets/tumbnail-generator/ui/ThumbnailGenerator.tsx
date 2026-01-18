@@ -1,13 +1,151 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { ReferenceImageUpload } from "@/features/file/image-upload";
 import { ThumbnailConfig, ModelType } from "@/shared/types/types";
 import { generateImage } from "@/shared/api/gemini/geminiService";
 
+/**
+ * Gemini 썸네일 전용 프롬프트 구조
+ * - 추상 스타일 제거
+ * - 구도/조명/배경 고정
+ * - 텍스트 생성 허용 (썸네일용 짧은 헤드라인)
+ */
+
+type UiStyle = "Studio" | "UseCase" | "PremiumDark" | "Infographic" | "FlatLay";
+
+const UI_STYLE_LABEL: Record<UiStyle, string> = {
+  Studio: "스튜디오(정석)",
+  UseCase: "사용 장면(미니멀)",
+  PremiumDark: "프리미엄(다크)",
+  Infographic: "광고형(텍스트 강조)",
+  FlatLay: "플랫레이(탑뷰)",
+};
+
+function normalizeWhitespace(s: string) {
+  return s.replace(/\s+/g, " ").trim();
+}
+
+function featuresToDirectives(featuresRaw: string) {
+  const f = normalizeWhitespace(featuresRaw || "");
+  if (!f) return "";
+
+  const parts = f
+    .split(/[,/|\n]+/g)
+    .map((x) => normalizeWhitespace(x))
+    .filter(Boolean)
+    .slice(0, 6);
+
+  if (parts.length === 0) return "";
+
+  return `Key features to visually emphasize: ${parts.join(", ")}.`;
+}
+
+function styleBlock(style: UiStyle) {
+  const common = [
+    "Commercial ecommerce thumbnail photography.",
+    "High sharpness, clean edges, realistic materials.",
+    "High contrast, eye-catching but not surreal.",
+  ];
+
+  const blocks: Record<UiStyle, string[]> = {
+    Studio: [
+      "Pure white seamless studio background.",
+      "Soft studio lighting with subtle shadow.",
+      "Centered hero product composition, 50mm look.",
+    ],
+    UseCase: [
+      "Minimal tidy lifestyle scene.",
+      "Natural daylight with soft fill light.",
+      "Product is clearly dominant in the frame.",
+    ],
+    PremiumDark: [
+      "Premium dark gradient background.",
+      "Rim light and crisp highlights.",
+      "Luxury advertising style lighting.",
+    ],
+    Infographic: [
+      "Clean simple background or light gradient.",
+      "Composition suitable for advertising text overlay.",
+      "High clarity and strong product separation.",
+    ],
+    FlatLay: [
+      "Top-down flat lay composition.",
+      "Neatly arranged, minimal props (max one).",
+      "Even lighting, clean layout.",
+    ],
+  };
+
+  return [...common, ...blocks[style]].join(" ");
+}
+
+function personBlock(hasPerson: boolean) {
+  if (!hasPerson) {
+    return [
+      "Product-only hero shot.",
+      "Single product focus.",
+      "No extra hands or unnecessary objects.",
+    ].join(" ");
+  }
+
+  return [
+    "Include one professional adult model.",
+    "The model supports the product, product remains the main focus.",
+    "Natural pose, clean styling, ecommerce advertising style.",
+  ].join(" ");
+}
+
+function buildGeminiPrompt(params: {
+  productName: string;
+  features: string;
+  style: UiStyle;
+  hasPerson: boolean;
+  hasReferenceImages: boolean;
+}) {
+  const { productName, features, style, hasPerson, hasReferenceImages } =
+    params;
+
+  const guardrails = [
+    "No duplicated products.",
+    "No broken anatomy.",
+    "No distorted shapes.",
+    "No low-resolution artifacts.",
+    "Square 1:1 thumbnail.",
+  ].join(" ");
+
+  const referenceHint = hasReferenceImages
+    ? "Match the product shape, color, and details accurately based on the reference images."
+    : "";
+
+  const featureDirectives = featuresToDirectives(features);
+
+  const base = `Create a professional ecommerce thumbnail image for: ${productName}.`;
+  const composition =
+    "Main goal: maximize click-through rate and product clarity.";
+  const textGuidance =
+    "Include short, bold, readable advertising text suitable for a shopping thumbnail.";
+
+  const blocks = [
+    base,
+    composition,
+    textGuidance,
+    styleBlock(style),
+    personBlock(hasPerson),
+    featureDirectives,
+    referenceHint,
+    guardrails,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return normalizeWhitespace(blocks);
+}
+
 const ThumbnailGenerator: React.FC = () => {
-  const [config, setConfig] = useState<ThumbnailConfig>({
+  const [config, setConfig] = useState<
+    Omit<ThumbnailConfig, "style"> & { style: UiStyle }
+  >({
     productName: "",
     features: "",
-    style: "Clean",
+    style: "Studio",
     hasPerson: false,
     textPosition: "bottom",
     referenceImages: [],
@@ -17,27 +155,28 @@ const ThumbnailGenerator: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [modelType, setModelType] = useState<ModelType>(ModelType.FREE);
 
+  const promptPreview = useMemo(() => {
+    return buildGeminiPrompt({
+      productName: config.productName,
+      features: config.features,
+      style: config.style,
+      hasPerson: config.hasPerson,
+      hasReferenceImages: (config.referenceImages?.length ?? 0) > 0,
+    });
+  }, [config]);
+
   const handleGenerate = async () => {
     if (!config.productName) return;
+
     setLoading(true);
     try {
-      const prompt = `A professional ecommerce thumbnail for ${
-        config.productName
-      }. 
-      Style: ${config.style}. ${config.features}. 
-      ${
-        config.hasPerson
-          ? "Including a professional human model showcasing the product."
-          : "Product focused shot."
-      }
-      Clean commercial look, studio lighting.`;
-
       const imageUrl = await generateImage(
-        prompt,
+        promptPreview,
         modelType,
         "1:1",
         config.referenceImages
       );
+
       setResultImage(imageUrl);
     } catch (e) {
       alert("썸네일 생성 중 오류가 발생했습니다.");
@@ -52,125 +191,107 @@ const ThumbnailGenerator: React.FC = () => {
       <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-100 space-y-6 h-fit">
         <h2 className="text-2xl font-bold text-slate-800">썸네일 제작 설정</h2>
 
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700">
-              상품명
-            </label>
-            <input
-              className="w-full px-4 py-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="예: 갤럭시 버즈 프로 3"
-              value={config.productName}
-              onChange={(e) =>
-                setConfig({ ...config, productName: e.target.value })
-              }
-            />
-          </div>
+        {/* 상품명 */}
+        <div>
+          <label className="text-sm font-semibold text-slate-700">상품명</label>
+          <input
+            className="w-full px-4 py-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="예: 갤럭시 버즈 프로 3"
+            value={config.productName}
+            onChange={(e) =>
+              setConfig((p) => ({ ...p, productName: e.target.value }))
+            }
+          />
+        </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700">
-              강조하고 싶은 특징
-            </label>
-            <input
-              className="w-full px-4 py-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="예: 가죽 케이스 장착, 은은한 무드등 효과"
-              value={config.features}
-              onChange={(e) =>
-                setConfig({ ...config, features: e.target.value })
-              }
-            />
-          </div>
+        <div className="space-y-2">
+          <label className="text-sm font-semibold text-slate-700">
+            강조하고 싶은 특징
+          </label>
+          <input
+            className="w-full px-4 py-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="예: 가죽 케이스 장착, 은은한 무드등 효과"
+            value={config.features}
+            onChange={(e) =>
+              setConfig((p) => ({ ...p, features: e.target.value }))
+            }
+          />
+        </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700">
-              스타일 선택
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {(["Clean", "Lifestyle", "Creative"] as const).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setConfig({ ...config, style: s })}
-                  className={`py-2 rounded-lg text-sm font-medium border transition-all ${
-                    config.style === s
-                      ? "bg-blue-600 text-white border-blue-600"
-                      : "bg-slate-50 text-slate-600 border-slate-200"
-                  }`}
-                >
-                  {s === "Clean"
-                    ? "깔끔한"
-                    : s === "Lifestyle"
-                    ? "라이프스타일"
-                    : "창의적인"}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 py-2">
-            <input
-              type="checkbox"
-              id="person"
-              checked={config.hasPerson}
-              onChange={(e) =>
-                setConfig({ ...config, hasPerson: e.target.checked })
-              }
-              className="w-5 h-5 rounded text-blue-600"
-            />
-            <label
-              htmlFor="person"
-              className="text-sm font-medium text-slate-700"
-            >
-              인물 모델 포함 여부
-            </label>
-          </div>
-
-          <div className="space-y-2 pt-2 border-t border-slate-100">
-            <label className="text-sm font-semibold text-slate-700">
-              모델 등급 선택
-            </label>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  checked={modelType === ModelType.FREE}
-                  onChange={() => setModelType(ModelType.FREE)}
-                  className="text-blue-600"
-                />
-                <span className="text-sm">무료 (Flash)</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  checked={modelType === ModelType.PAID}
-                  onChange={() => setModelType(ModelType.PAID)}
-                  className="text-blue-600"
-                />
-                <span className="text-sm font-bold text-blue-700">
-                  유료 (Nanobanana Pro)
-                </span>
-              </label>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <ReferenceImageUpload
-              value={config.referenceImages ?? []}
-              onChange={(imgs) =>
-                setConfig((prev) => ({ ...prev, referenceImages: imgs }))
-              }
-            />
+        {/* 스타일 */}
+        <div>
+          <label className="text-sm font-semibold text-slate-700">스타일</label>
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            {(Object.keys(UI_STYLE_LABEL) as UiStyle[]).map((s) => (
+              <button
+                key={s}
+                onClick={() => setConfig((p) => ({ ...p, style: s }))}
+                className={`py-2 rounded-lg border text-sm font-medium ${
+                  config.style === s
+                    ? "bg-blue-600 text-white"
+                    : "bg-slate-50 text-slate-600"
+                }`}
+              >
+                {UI_STYLE_LABEL[s]}
+              </button>
+            ))}
           </div>
         </div>
+
+        {/* 인물 */}
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={config.hasPerson}
+            onChange={(e) =>
+              setConfig((p) => ({ ...p, hasPerson: e.target.checked }))
+            }
+          />
+          <span className="text-sm">인물 포함</span>
+        </label>
+
+        {/* 모델 */}
+        <div>
+          <label className="text-sm font-semibold text-slate-700">
+            모델 등급
+          </label>
+          <div className="flex gap-4 mt-2">
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                checked={modelType === ModelType.FREE}
+                onChange={() => setModelType(ModelType.FREE)}
+              />
+              무료
+            </label>
+            <label className="flex items-center gap-2 font-bold text-blue-700">
+              <input
+                type="radio"
+                checked={modelType === ModelType.PAID}
+                onChange={() => setModelType(ModelType.PAID)}
+              />
+              Pro
+            </label>
+          </div>
+        </div>
+
+        <ReferenceImageUpload
+          value={config.referenceImages ?? []}
+          onChange={(imgs) =>
+            setConfig((prev) => ({ ...prev, referenceImages: imgs }))
+          }
+        />
 
         <button
           onClick={handleGenerate}
           disabled={loading || !config.productName}
-          className="w-full py-4 bg-blue-600 text-white font-bold rounded-xl shadow-lg hover:bg-blue-700 transition-all disabled:opacity-50"
+          className="w-full py-4 bg-blue-600 text-white font-bold rounded-xl shadow hover:bg-blue-700 disabled:opacity-50"
         >
           {loading ? "생성 중..." : "썸네일 생성하기"}
         </button>
       </div>
 
+      {/* 결과 */}
       <div className="flex flex-col items-center justify-center space-y-6">
         <div className="relative w-full max-w-[500px] aspect-square bg-white rounded-3xl shadow-2xl overflow-hidden border-8 border-white flex items-center justify-center">
           {resultImage ? (
@@ -180,32 +301,15 @@ const ThumbnailGenerator: React.FC = () => {
               className="w-full h-full object-cover"
             />
           ) : (
-            <div className="flex flex-col items-center text-slate-300">
-              <div className="w-20 h-20 mb-4 border-4 border-dashed border-slate-200 rounded-full flex items-center justify-center">
-                <span className="text-4xl">+</span>
-              </div>
-              <p className="font-medium text-slate-400">
-                설정 후 생성을 눌러주세요
-              </p>
-            </div>
+            <p className="text-slate-400">이미지가 여기에 생성됩니다</p>
           )}
 
           {loading && (
             <div className="absolute inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center">
-              <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
             </div>
           )}
         </div>
-
-        {resultImage && (
-          <a
-            href={resultImage}
-            download={`${config.productName}_thumbnail.png`}
-            className="px-8 py-3 bg-slate-800 text-white font-bold rounded-full hover:bg-slate-900 transition-all flex items-center gap-2"
-          >
-            <span>다운로드 하기</span>
-          </a>
-        )}
       </div>
     </div>
   );

@@ -19,12 +19,20 @@ import {
   generateImage,
 } from "@/shared/api/gemini/geminiService";
 
-const DetailPlanner: React.FC = () => {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [loading, setLoading] = useState(false);
-  const [modelType, setModelType] = useState<ModelType>(ModelType.FREE);
+import { useDraft } from "@/features/draft/model/useDraft";
+import { STORAGE_KEYS } from "@/shared/config/storageKyes";
 
-  const [info, setInfo] = useState<ProductInfo>({
+type DetailPlannerDraft = {
+  step: 1 | 2 | 3;
+  modelType: ModelType;
+  info: ProductInfo;
+  segments: DetailImageSegment[];
+};
+
+const initialDraft: DetailPlannerDraft = {
+  step: 1,
+  modelType: ModelType.FREE,
+  info: {
     name: "",
     category: "",
     price: "",
@@ -33,14 +41,86 @@ const DetailPlanner: React.FC = () => {
     targetAge: ["30대"],
     pageLength: PageLength.STANDARD,
     referenceImages: [],
-  });
+  },
+  segments: [],
+};
 
-  const [segments, setSegments] = useState<DetailImageSegment[]>([]);
+function sanitizeDraftForStorage(d: DetailPlannerDraft): DetailPlannerDraft {
+  const refs: unknown = (d.info as any)?.referenceImages;
+
+  // keep only string refs (URLs). Drop File/Blob objects to avoid localStorage JSON errors.
+  const safeRefs = Array.isArray(refs)
+    ? refs.filter((x) => typeof x === "string")
+    : [];
+
+  return {
+    ...d,
+    info: {
+      ...d.info,
+      referenceImages: safeRefs as any,
+    },
+  };
+}
+
+const DetailPlanner: React.FC = () => {
+  const [loading, setLoading] = useState(false);
+
+  // ✅ localStorage draft (step/model/info/segments)
+  const {
+    state: draft,
+    setState: setDraft,
+    clear,
+  } = useDraft<DetailPlannerDraft>(
+    STORAGE_KEYS.DETAIL_PLANNER_DRAFT,
+    initialDraft,
+    { version: 1, ttlMs: 7 * 24 * 60 * 60 * 1000, debounceMs: 400 }
+  );
+
+  // derive previous local state names
+  const step = draft.step;
+  const modelType = draft.modelType;
+  const info = draft.info;
+  const segments = draft.segments;
+
+  // wrappers to keep existing prop types and code style
+  const setStep = (s: 1 | 2 | 3) => setDraft((prev) => ({ ...prev, step: s }));
+  const setModelType = (m: ModelType) =>
+    setDraft((prev) => ({ ...prev, modelType: m }));
+
+  const setInfo: React.Dispatch<React.SetStateAction<ProductInfo>> = (
+    updater
+  ) => {
+    setDraft((prev) => {
+      const nextInfo =
+        typeof updater === "function" ? (updater as any)(prev.info) : updater;
+
+      // sanitize ref images to keep draft serializable
+      const sanitized = sanitizeDraftForStorage({
+        ...prev,
+        info: nextInfo,
+      });
+
+      return sanitized;
+    });
+  };
+
+  const setSegments = (next: DetailImageSegment[]) =>
+    setDraft((prev) => sanitizeDraftForStorage({ ...prev, segments: next }));
+
+  const updateSegment = (
+    index: number,
+    field: keyof DetailImageSegment,
+    value: string
+  ) => {
+    const newSegments = [...segments];
+    newSegments[index] = { ...newSegments[index], [field]: value };
+    setSegments(newSegments);
+  };
 
   // Step3 캡처 대상 refs
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-  // ✅ file-export feature (다운로드 상태/진행률/실행)
+  // ✅ file-export feature
   const { downloading, progress, exportZip } = useZipExport();
 
   const handlePlan = async () => {
@@ -91,20 +171,27 @@ const DetailPlanner: React.FC = () => {
     setLoading(false);
   };
 
-  const updateSegment = (
-    index: number,
-    field: keyof DetailImageSegment,
-    value: string
-  ) => {
-    const newSegments = [...segments];
-    newSegments[index] = { ...newSegments[index], [field]: value };
-    setSegments(newSegments);
+  const resetAll = () => {
+    clear();
+    setDraft(initialDraft);
   };
 
   return (
     <div className="w-full">
       {step === 1 && (
-        <Step1Input info={info} setInfo={setInfo} onNext={handlePlan} />
+        <div className="space-y-4">
+          <div className="max-w-3xl mx-auto flex justify-end">
+            <button
+              type="button"
+              onClick={resetAll}
+              className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 rounded-lg transition-all border border-slate-200 bg-white"
+            >
+              입력 초기화
+            </button>
+          </div>
+
+          <Step1Input info={info} setInfo={setInfo} onNext={handlePlan} />
+        </div>
       )}
 
       {step === 2 && (
@@ -196,6 +283,23 @@ const DetailPlanner: React.FC = () => {
                     }
                   />
                 </div>
+
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setStep(1)}
+                    className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 rounded-lg transition-all"
+                  >
+                    정보 입력으로
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetAll}
+                    className="px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg transition-all border border-red-100 bg-white"
+                  >
+                    전체 초기화
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -238,7 +342,9 @@ const DetailPlanner: React.FC = () => {
             {segments.map((seg, idx) => (
               <div
                 key={seg.id || idx}
-                ref={(el) => (pageRefs.current[idx] = el)}
+                ref={(el) => {
+                  pageRefs.current[idx] = el;
+                }}
                 className="relative aspect-[9/16] bg-slate-100 border-b border-slate-200 flex flex-col items-center justify-center overflow-hidden"
               >
                 {seg.imageUrl ? (
@@ -277,8 +383,17 @@ const DetailPlanner: React.FC = () => {
             * ZIP 저장은 여러 장을 한 번에 내려받기 위한 방식입니다.
           </div>
 
-          {/* ✅ feature 오버레이 */}
           <ExportProgressOverlay open={downloading} progress={progress} />
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={resetAll}
+              className="px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg transition-all border border-red-100 bg-white"
+            >
+              전체 초기화
+            </button>
+          </div>
         </div>
       )}
 

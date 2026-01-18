@@ -3,6 +3,9 @@ import { ReferenceImageUpload } from "@/features/file/image-upload";
 import { ThumbnailConfig, ModelType } from "@/shared/types/types";
 import { generateImage } from "@/shared/api/gemini/geminiService";
 
+import { useDraft } from "@/features/draft/model/useDraft";
+import { STORAGE_KEYS } from "@/shared/config/storageKyes";
+
 /**
  * Gemini 썸네일 전용 프롬프트 구조
  * - 추상 스타일 제거
@@ -139,21 +142,82 @@ function buildGeminiPrompt(params: {
   return normalizeWhitespace(blocks);
 }
 
-const ThumbnailGenerator: React.FC = () => {
-  const [config, setConfig] = useState<
-    Omit<ThumbnailConfig, "style"> & { style: UiStyle }
-  >({
+type ThumbnailDraft = {
+  config: Omit<ThumbnailConfig, "style"> & { style: UiStyle };
+  modelType: ModelType;
+  resultImage: string | null;
+};
+
+const initialDraft: ThumbnailDraft = {
+  config: {
     productName: "",
     features: "",
     style: "Studio",
     hasPerson: false,
     textPosition: "bottom",
     referenceImages: [],
+  },
+  modelType: ModelType.FREE,
+  resultImage: null,
+};
+
+function sanitizeDraftForStorage(d: ThumbnailDraft): ThumbnailDraft {
+  const refs: unknown = (d.config as any)?.referenceImages;
+  const safeRefs = Array.isArray(refs)
+    ? refs.filter((x) => typeof x === "string")
+    : [];
+
+  return {
+    ...d,
+    config: {
+      ...d.config,
+      referenceImages: safeRefs as any,
+    },
+  };
+}
+
+const ThumbnailGenerator: React.FC = () => {
+  const [loading, setLoading] = useState(false);
+
+  // ✅ localStorage draft
+  const {
+    state: draft,
+    setState: setDraft,
+    clear,
+  } = useDraft<ThumbnailDraft>(STORAGE_KEYS.THUMBNAIL_DRAFT, initialDraft, {
+    version: 1,
+    ttlMs: 7 * 24 * 60 * 60 * 1000,
+    debounceMs: 400,
   });
 
-  const [resultImage, setResultImage] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [modelType, setModelType] = useState<ModelType>(ModelType.FREE);
+  const config = draft.config;
+  const modelType = draft.modelType;
+  const resultImage = draft.resultImage;
+
+  const setConfig: React.Dispatch<
+    React.SetStateAction<Omit<ThumbnailConfig, "style"> & { style: UiStyle }>
+  > = (updater) => {
+    setDraft((prev) => {
+      const nextConfig =
+        typeof updater === "function" ? (updater as any)(prev.config) : updater;
+
+      return sanitizeDraftForStorage({
+        ...prev,
+        config: nextConfig,
+      });
+    });
+  };
+
+  const setModelType = (m: ModelType) =>
+    setDraft((prev) => ({ ...prev, modelType: m }));
+
+  const setResultImage = (url: string | null) =>
+    setDraft((prev) => ({ ...prev, resultImage: url }));
+
+  const resetAll = () => {
+    clear();
+    setDraft(initialDraft);
+  };
 
   const promptPreview = useMemo(() => {
     return buildGeminiPrompt({
@@ -189,7 +253,18 @@ const ThumbnailGenerator: React.FC = () => {
   return (
     <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12">
       <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-100 space-y-6 h-fit">
-        <h2 className="text-2xl font-bold text-slate-800">썸네일 제작 설정</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-slate-800">
+            썸네일 제작 설정
+          </h2>
+          <button
+            type="button"
+            onClick={resetAll}
+            className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 rounded-lg transition-all border border-slate-200 bg-white"
+          >
+            입력 초기화
+          </button>
+        </div>
 
         {/* 상품명 */}
         <div>

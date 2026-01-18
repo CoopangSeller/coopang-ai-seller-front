@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
+import { RecentPagesMenu } from "@/features/recent-pages/ui/RecentPagesMenu";
+import { getRecentPages } from "@/features/recent-pages/model/recentPages";
 
 export type AppMenuKey = "detail" | "thumbnail";
 type MenuItem = { key: AppMenuKey; label: string };
 
 type Props = {
   isAuthed: boolean;
-  welcomeText?: string; // ex) "게스트님 환영합니다"
+  welcomeText?: string;
   active: AppMenuKey;
   onSelect: (key: AppMenuKey) => void;
   onLogout: () => void;
@@ -32,6 +34,10 @@ const Header: React.FC<Props> = ({
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
+  const [recentOpen, setRecentOpen] = useState(false);
+
+  // ✅ recent count badge
+  const [recentCount, setRecentCount] = useState(0);
 
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
@@ -41,11 +47,19 @@ const Header: React.FC<Props> = ({
       if (!wrapRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
         setUserOpen(false);
+        setRecentOpen(false);
       }
     };
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
+
+  // ✅ 메뉴 열릴 때 최근 목록 개수 동기화
+  useEffect(() => {
+    if (recentOpen) {
+      setRecentCount(getRecentPages().length);
+    }
+  }, [recentOpen]);
 
   const statusDotCls = isAuthed
     ? "bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.14)]"
@@ -82,7 +96,7 @@ const Header: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Right: welcome + hamburger */}
+        {/* Right */}
         <div className="flex items-center gap-3 relative">
           {/* Welcome + status dot */}
           <div className="relative flex items-center gap-2">
@@ -90,10 +104,10 @@ const Header: React.FC<Props> = ({
               type="button"
               aria-label="auth-status"
               onClick={() => {
-                // 로그인 상태일 때만 로그아웃 팝오버 노출
                 if (!isAuthed) return;
                 setUserOpen((v) => !v);
                 setMenuOpen(false);
+                setRecentOpen(false);
               }}
               className={[
                 "w-3.5 h-3.5 rounded-full transition",
@@ -107,7 +121,6 @@ const Header: React.FC<Props> = ({
               {welcomeText}
             </span>
 
-            {/* Logout popover (only when authed + dot clicked) */}
             {userOpen && isAuthed && (
               <div className="absolute right-0 top-10 w-[220px] rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-100">
@@ -139,6 +152,73 @@ const Header: React.FC<Props> = ({
             )}
           </div>
 
+          {/* ✅ Recent button (Option A) */}
+          <div className="relative">
+            <button
+              type="button"
+              aria-label="recent"
+              title="최근 접속"
+              onClick={() => {
+                setRecentOpen((v) => !v);
+                setMenuOpen(false);
+                setUserOpen(false);
+              }}
+              className={[
+                "inline-flex items-center gap-2 px-3 py-2 rounded-2xl",
+                "bg-white border border-slate-200 shadow-sm",
+                "hover:bg-slate-50 transition",
+                recentOpen ? "ring-2 ring-blue-200 border-blue-200" : "",
+              ].join(" ")}
+            >
+              {/* clock icon */}
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                className="text-slate-700"
+              >
+                <path
+                  d="M12 8v5l3 2"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                />
+              </svg>
+
+              {/* label (desktop only) */}
+              <span className="hidden md:inline text-sm font-extrabold text-slate-800">
+                최근
+              </span>
+
+              {/* count badge */}
+              {recentCount > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-black bg-blue-600 text-white">
+                  {recentCount > 9 ? "9+" : recentCount}
+                </span>
+              )}
+            </button>
+
+            {recentOpen && (
+              <div className="absolute right-0 top-12 w-[320px] rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+                <RecentPagesMenu
+                  onSelect={(key) => {
+                    onSelect(key as AppMenuKey);
+                    setRecentOpen(false);
+                  }}
+                  onClose={() => setRecentOpen(false)}
+                  onChanged={(items) => setRecentCount(items.length)} // ✅ 핵심
+                />
+              </div>
+            )}
+          </div>
+
           {/* Hamburger */}
           <button
             type="button"
@@ -146,6 +226,7 @@ const Header: React.FC<Props> = ({
             onClick={() => {
               setMenuOpen((v) => !v);
               setUserOpen(false);
+              setRecentOpen(false);
             }}
             className="inline-flex items-center justify-center px-4 py-2 rounded-2xl bg-slate-100 border border-slate-200 hover:bg-slate-200 transition"
           >
@@ -171,7 +252,7 @@ const Header: React.FC<Props> = ({
             </div>
           </button>
 
-          {/* Menu dropdown */}
+          {/* Menu dropdown (only main menu) */}
           {menuOpen && (
             <div className="absolute right-0 top-12 w-[260px] rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
               <div className="md:hidden px-4 py-3 border-b border-slate-100">

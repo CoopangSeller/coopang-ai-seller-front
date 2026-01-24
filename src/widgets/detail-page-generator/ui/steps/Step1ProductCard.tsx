@@ -1,0 +1,288 @@
+import React, { useState } from "react";
+import { ProductInfo, Pricing } from "@/shared/types/types";
+
+type Props = {
+  info: ProductInfo;
+  setInfo: React.Dispatch<React.SetStateAction<ProductInfo>>;
+
+  competitorUrl: string;
+  setCompetitorUrl: (v: string) => void;
+  competitorPaste: string;
+  setCompetitorPaste: (v: string) => void;
+
+  uspLoading: boolean;
+  onSuggestUSP: () => Promise<void>;
+
+  resetAll: () => void;
+};
+
+function normalizeWhitespace(s: string) {
+  return (s ?? "").replace(/\s+/g, " ").trim();
+}
+
+const Step1ProductCard: React.FC<Props> = ({
+  info,
+  setInfo,
+  competitorUrl,
+  setCompetitorUrl,
+  competitorPaste,
+  setCompetitorPaste,
+  uspLoading,
+  onSuggestUSP,
+  resetAll,
+}) => {
+  const [open, setOpen] = useState(true);
+
+  const toggleSelection = (
+    field: "targetGender" | "targetAge",
+    value: string,
+  ) =>
+    setInfo((prev) => ({
+      ...prev,
+      [field]: prev[field].includes(value)
+        ? prev[field].filter((v) => v !== value)
+        : [...prev[field], value],
+    }));
+
+  return (
+    <div className="bg-white p-6 md:p-8 rounded-2xl shadow-xl border border-slate-100">
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex-1 flex items-center justify-between text-left"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-7 h-7 rounded-full bg-blue-600 text-white font-black flex items-center justify-center">
+              1
+            </div>
+            <div className="text-lg font-extrabold text-slate-900">
+              상품 정보 입력
+            </div>
+          </div>
+          <div
+            className={[
+              "text-xs font-black px-2 py-1 rounded-full border",
+              open
+                ? "bg-blue-50 text-blue-700 border-blue-200"
+                : "bg-slate-50 text-slate-600 border-slate-200",
+            ].join(" ")}
+          >
+            {open ? "접기" : "펼치기"}
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={resetAll}
+          className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 font-extrabold text-xs hover:bg-slate-50"
+          title="드래프트/선택/프리뷰 모두 초기화"
+        >
+          입력 초기화
+        </button>
+      </div>
+
+      {open && (
+        <div className="mt-6 space-y-8">
+          {/* 상품명/카테고리 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-slate-700">
+                상품명
+              </label>
+              <input
+                type="text"
+                placeholder="예: 초경량 티타늄 텀블러"
+                className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                value={info.name}
+                onChange={(e) => setInfo({ ...info, name: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-slate-700">
+                카테고리
+              </label>
+              <select
+                className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+                value={info.category}
+                onChange={(e) => setInfo({ ...info, category: e.target.value })}
+              >
+                <option value="">선택해주세요</option>
+                <option value="패션">패션/의류</option>
+                <option value="식품">식품</option>
+                <option value="리빙">리빙/가구</option>
+                <option value="디지털">디지털/가전</option>
+                <option value="뷰티">뷰티</option>
+                <option value="기타">기타</option>
+              </select>
+            </div>
+          </div>
+
+          {/* 가격 */}
+          <div className="space-y-3">
+            <div className="text-sm font-semibold text-slate-700">
+              가격 정보 (선택)
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500">
+                  정상가
+                </label>
+                <input
+                  type="text"
+                  placeholder="예: 39,900"
+                  className="w-full px-4 py-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500"
+                  value={info.pricing?.originalPrice ?? ""}
+                  onChange={(e) =>
+                    setInfo((p) => ({
+                      ...p,
+                      pricing: {
+                        ...(p.pricing as Pricing),
+                        originalPrice: e.target.value,
+                        salePrice: p.pricing?.salePrice ?? "",
+                      },
+                    }))
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500">
+                  할인가
+                </label>
+                <input
+                  type="text"
+                  placeholder="예: 29,900"
+                  className="w-full px-4 py-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500"
+                  value={info.pricing?.salePrice ?? ""}
+                  onChange={(e) =>
+                    setInfo((p) => ({
+                      ...p,
+                      pricing: {
+                        ...(p.pricing as Pricing),
+                        originalPrice: p.pricing?.originalPrice ?? "",
+                        salePrice: e.target.value,
+                      },
+                    }))
+                  }
+                />
+              </div>
+            </div>
+            <div className="text-xs text-slate-500">
+              * 가격은 기획안에서 “일부 섹션에만” 자연스럽게 노출되도록
+              제어합니다.
+            </div>
+          </div>
+
+          {/* USP */}
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-slate-700">
+              핵심 특징 (USP)
+            </label>
+            <textarea
+              rows={4}
+              placeholder="상품의 가장 큰 장점들을 적어주세요. (예: 24시간 보온 보냉, 150g의 가벼운 무게...)"
+              className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+              value={info.features}
+              onChange={(e) => setInfo({ ...info, features: e.target.value })}
+            />
+
+            <div className="mt-4 p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-3">
+              <div className="text-sm font-extrabold text-slate-800">
+                USP 자동 작성 (쿠팡 참고 상품)
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input
+                  className="w-full px-4 py-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  placeholder="쿠팡 참고 상품 URL (선택)"
+                  value={competitorUrl}
+                  onChange={(e) => setCompetitorUrl(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={onSuggestUSP}
+                  disabled={uspLoading}
+                  className="px-4 py-3 rounded-lg font-extrabold bg-slate-900 text-white hover:bg-slate-950 disabled:opacity-50"
+                >
+                  {uspLoading ? "분석 중..." : "AI로 USP 작성하기"}
+                </button>
+              </div>
+
+              <textarea
+                rows={4}
+                className="w-full px-4 py-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                placeholder={[
+                  "크롤링 없이 1차는 ‘복붙’ 방식입니다.",
+                  "쿠팡 페이지에서 보이는 소구점/스펙/후기 키워드 등을 아래에 붙여넣고 실행하세요.",
+                ].join("\n")}
+                value={competitorPaste}
+                onChange={(e) => setCompetitorPaste(e.target.value)}
+              />
+
+              <div className="text-xs text-slate-500">
+                * 서버에 크롤링 프록시를 붙이면(URL만 넣고) 자동화 가능합니다.
+              </div>
+            </div>
+          </div>
+
+          {/* 타겟 */}
+          <div className="space-y-4">
+            <label className="block text-sm font-semibold text-slate-700">
+              타겟 설정
+            </label>
+
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                {["남성", "여성", "전체"].map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => toggleSelection("targetGender", g)}
+                    className={[
+                      "px-4 py-2 rounded-full border text-sm transition-all",
+                      info.targetGender.includes(g)
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-400",
+                    ].join(" ")}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {["10대", "20대", "30대", "40대", "50대", "60대+"].map(
+                  (age) => (
+                    <button
+                      key={age}
+                      type="button"
+                      onClick={() => toggleSelection("targetAge", age)}
+                      className={[
+                        "px-4 py-2 rounded-full border text-sm transition-all",
+                        info.targetAge.includes(age)
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-400",
+                      ].join(" ")}
+                    >
+                      {age}
+                    </button>
+                  ),
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 공통 레퍼런스 */}
+          <div className="text-xs text-slate-500">
+            * 공통 레퍼런스(상세 생성에 참고되는 이미지)는 Step3에서 추가 업로드
+            가능합니다.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Step1ProductCard;

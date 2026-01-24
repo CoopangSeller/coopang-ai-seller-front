@@ -1,0 +1,227 @@
+// src/widgets/detail-page-generator/api/detailPlannerGemini.ts
+import { DetailImageSegment, PageLength, ProductInfo, ModelType } from "@/shared/types/types";
+import { generateImage, generateJsonWithSchema, Type } from "@/shared/api/gemini/geminiService";
+
+function safeJoin(arr?: string[]) {
+  return (arr ?? []).filter(Boolean).join(", ");
+}
+
+function clampLine(input: string, maxChars: number) {
+  const t = (input || "").replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  return t.length > maxChars ? t.slice(0, maxChars).trimEnd() + "…" : t;
+}
+
+function normalizeUSP(features: string) {
+  const raw = (features ?? "").trim();
+  if (!raw) return "";
+  return raw.length > 1200 ? raw.slice(0, 1200) : raw;
+}
+
+function pricingBlock(info: ProductInfo) {
+  const o = info.pricing?.originalPrice?.trim() ?? "";
+  const s = info.pricing?.salePrice?.trim() ?? "";
+  if (!o && !s) return "가격 정보: (미입력)";
+  return `가격 정보: 정상가(${o || "미입력"}), 할인가(${s || "미입력"})`;
+}
+
+function lengthLabel(len: PageLength) {
+  if (len === PageLength.AUTO) return "AI 추천 (5~9장)";
+  return `${len}장`;
+}
+
+/**
+ * ✅ 쿠팡 전용 기획 프롬프트
+ * - keyMessage는 “섹션 테마 토큰” (렌더링 텍스트 아님)
+ * - visualPrompt에는 “텍스트 생성 금지” 같은 문구를 넣지 않음 (이미지 단계에서 통제)
+ */
+function buildCoupangPlanPrompt(info: ProductInfo) {
+  const usp = normalizeUSP(info.features);
+
+  return `
+당신은 쿠팡 모바일 상세페이지(9:16) 기획 전문가입니다.
+아래 상품 정보를 바탕으로, “쿠팡에서 실제로 팔리는 구조(Winning Logic)”로 섹션을 기획하세요.
+
+[상품 정보]
+- 상품명: ${info.name}
+- 카테고리: ${info.category}
+- ${pricingBlock(info)}
+- 타겟: 성별(${safeJoin(info.targetGender)}), 연령(${safeJoin(info.targetAge)})
+- 목표 길이: ${lengthLabel(info.pageLength)}
+
+[USP/핵심 특징(사용자 입력)]
+${usp || "(미입력)"}
+
+[기획 논리 구조(권장 흐름)]
+1) Hook: 문제/욕구를 한 문장으로 찌르기
+2) Benefit: 얻는 결과/이득을 즉시 제시
+3) Proof: 스펙/수치/비교/후기 근거
+4) Detail: 디테일/재질/사용법/구성
+5) Trust: 배송/AS/교환/신뢰 정보
+6) CTA: 망설임 해소 + 구매 유도
+
+[섹션 구성 규칙 — 쿠팡 고정 템플릿]
+- 반드시 아래 순서를 지켜 섹션을 생성:
+  HERO → PROBLEM → CORE_BENEFIT → PROOF_COMPARE → DETAIL → HOW_TO → TRUST → CTA
+- 각 템플릿은 1회씩만 사용
+- 템플릿 성격에 맞지 않는 내용 배치 금지
+
+[섹션별 텍스트 밀도 — 쿠팡 기준]
+- HERO: 헤드라인 1줄(필수) + 보조 0~1줄
+- PROBLEM: 질문/문제제기 1줄
+- CORE_BENEFIT: 헤드라인 1줄 + 보조 포인트 최대 2개
+- PROOF_COMPARE: 비교 라벨(기존/이 제품) + 짧은 근거 1줄 수준
+- DETAIL/HOW_TO: 카드형 3개(각 6~10자) 중심, 문장 길게 금지
+- TRUST: 안심/신뢰 메시지 위주(과장 금지)
+- CTA: 행동 유도 1줄(감성 과잉 금지)
+
+[가격 노출 정책(중요)]
+- 가격을 모든 섹션에 반복 노출하지 마세요.
+- 가격은 최대 1회만 노출.
+- 가격 노출은 아래 중 하나일 때만:
+  A) “혜택/구성/가성비”를 명확히 설명하는 섹션 1개
+  B) “기간 한정/할인” 프로모션 섹션 1개
+- 가격 정보가 미입력이라면 가격을 절대 언급하지 마세요.
+
+[출력 규칙]
+- 결과는 JSON 배열로만 출력
+- 각 아이템 필드(반드시 포함): id, title, logicalSections, keyMessage, visualPrompt
+- title: 이미지에 렌더링될 헤드라인(짧고 굵게)
+- logicalSections: 보조 포인트(짧게, 최대 3~4개)
+- keyMessage: “섹션 테마 토큰(내부용)” 입니다.
+  - 짧은 한국어 구(6~14자)
+  - 이미지에 그대로 출력될 문장처럼 쓰지 말 것(예: “완벽한 밀착!” 같은 카피형 금지)
+  - 예: “좁은 병 세척”, “선물용 고급 포장”, “중대과 크기”, “첫인상 임팩트”
+- visualPrompt: 사진/구도/조명/소품/피사체를 구체적으로(텍스트 지시 문구 금지)
+- 세로 9:16 구도를 전제로 작성
+`.trim();
+}
+
+/**
+ * ✅ plan 결과 최소 정규화
+ */
+function normalizePlannedSegments(raw: any): DetailImageSegment[] {
+  const arr = Array.isArray(raw) ? raw : [];
+  return arr.map((s, idx) => {
+    const title = clampLine(String(s?.title || ""), 32);
+    const keyMessage = clampLine(String(s?.keyMessage || ""), 14); // 내부 토큰이므로 더 짧게
+    const logicalSections = Array.isArray(s?.logicalSections)
+      ? s.logicalSections
+          .map((x: any) => clampLine(String(x || ""), 44))
+          .filter(Boolean)
+          .slice(0, 4)
+      : [];
+
+    return {
+      id: String(s?.id || `s${idx + 1}`),
+      title,
+      keyMessage,
+      logicalSections,
+      visualPrompt: String(s?.visualPrompt || "").trim(),
+    } as DetailImageSegment;
+  });
+}
+
+/**
+ * ✅ KeyMessage 미출력(테마 전용) + 쿠팡 상업용 레이아웃 룰 포함
+ * - 렌더링 텍스트: title + logicalSections만
+ * - keyMessage는 “DO NOT PRINT” 영역으로만 제공
+ */
+function buildCoupangSectionImagePrompt(info: ProductInfo, seg: DetailImageSegment) {
+  const themeToken = (seg.keyMessage || "").trim();
+  const title = (seg.title || "").trim();
+  const bullets = (seg.logicalSections || []).filter(Boolean).slice(0, 3);
+
+  const themeHint = themeToken
+    ? [
+        `Theme token (DO NOT PRINT THIS TEXT): "${themeToken}"`,
+        "Use it only to decide composition, props, scene, and emphasis.",
+      ].join("\n")
+    : "Use the intended section theme only to decide composition and emphasis (do not print it).";
+
+  const textPack = [
+    "[TEXT TO RENDER (KOREAN) — ONLY THESE TEXTS]",
+    title ? `- Headline (bold, 1 line): "${title}"` : "- Headline: (none)",
+    bullets.length ? `- Sub points (max 2~3, very short): ${bullets.map((b) => `"${b}"`).join(", ")}` : "- Sub points: (none)",
+    "",
+    "[STRICT RULE]",
+    "- Never render/print the theme token (keyMessage).",
+    "- Do not invent extra sentences at the bottom (no white footer captions).",
+    "- No random english letters, no watermarks, no fake brand logos.",
+  ].join("\n");
+
+  const layoutRules = [
+    "[COUPANG MOBILE COMMERCIAL LAYOUT RULES]",
+    "- 9:16 vertical detail-section image for Coupang mobile.",
+    "- Photo : Text ratio ≈ 70~80% photo / 20~30% text.",
+    "- Text must NOT overlap each other and must NOT cover product 핵심 영역.",
+    "- Keep safe margins. Use clean grid alignment, consistent spacing, stable line-height.",
+    "- Use 2~3 consistent theme colors across chips/icons/dividers (minimal, trustworthy).",
+    "- Overall tone: clean, premium, readable, minimal decoration.",
+  ].join("\n");
+
+  const productContext = [
+    "[PRODUCT CONTEXT]",
+    info.name ? `- Product: ${info.name}` : "",
+    info.category ? `- Category: ${info.category}` : "",
+    info.detailExtraPrompt?.trim() ? `- Extra direction: ${info.detailExtraPrompt.trim()}` : "",
+  ].filter(Boolean).join("\n");
+
+  return [
+    "Create a single high-conversion Coupang mobile detail-section image.",
+    "Professional commercial photography + clean editorial design (Korean e-commerce).",
+    "",
+    themeHint,
+    "",
+    layoutRules,
+    "",
+    productContext,
+    "",
+    "Visual direction (photo/scene):",
+    seg.visualPrompt?.trim() || "(none)",
+    "",
+    textPack,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+export async function planDetailPage(info: ProductInfo): Promise<DetailImageSegment[]> {
+  const prompt = buildCoupangPlanPrompt(info);
+
+  const schema = {
+    type: Type.ARRAY,
+    items: {
+      type: Type.OBJECT,
+      properties: {
+        id: { type: Type.STRING },
+        title: { type: Type.STRING },
+        logicalSections: { type: Type.ARRAY, items: { type: Type.STRING } },
+        keyMessage: { type: Type.STRING },
+        visualPrompt: { type: Type.STRING },
+      },
+      required: ["id", "title", "logicalSections", "keyMessage", "visualPrompt"],
+    },
+  };
+
+  const raw = await generateJsonWithSchema<any[]>("gemini-3-pro-preview", prompt, schema);
+  return normalizePlannedSegments(raw);
+}
+
+export async function generateDetailSectionImage(
+  info: ProductInfo,
+  seg: DetailImageSegment,
+  modelType: ModelType,
+  referenceImages?: string[],
+) {
+  const prompt = buildCoupangSectionImagePrompt(info, seg);
+
+  // ✅ API 키가 있는 경우 PRO 이미지 모델 강제
+  const proImageModel = "gemini-3-pro-image-preview";
+
+  return generateImage(prompt, ModelType.PAID, "9:16", referenceImages, {
+    allowText: true,
+    imageSize: "2K",
+    modelOverride: modelType === ModelType.PAID ? proImageModel : undefined,
+  });
+}

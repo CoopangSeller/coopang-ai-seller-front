@@ -1,3 +1,4 @@
+// src/widgets/detail-page-generator/model/useDetailPlannerState.ts
 import { useMemo, useRef, useState } from "react";
 import {
   DetailImageSegment,
@@ -6,11 +7,12 @@ import {
   PageLength,
   ProductInfo,
 } from "@/shared/types/types";
-import { generateImage, planDetailPage } from "@/shared/api/gemini/geminiService";
+import { planDetailPage, generateDetailSectionImage } from "../api/detailPlannerGemini";
 import { heuristicUspFromPaste, tryServerCrawl } from "../lib/usp";
 import { buildCutPrompt } from "../lib/prompts";
 import { useZipExport } from "@/features/file/file-export";
 import { useDraft } from "@/features/draft/model/useDraft";
+import { generateImage } from "@/shared/api/gemini/geminiService";
 
 const DRAFT_KEY = "detail-planner:v2";
 const SHOT_KEYS: DetailShotKey[] = ["cutout", "lifestyle", "model"];
@@ -40,9 +42,13 @@ export function useDetailPlannerState() {
     model: null,
   });
 
+  // Step3: 사용자가 추가 업로드하는 이미지들
   const [extraImages, setExtraImages] = useState<string[]>([]);
+
+  // Step3: 사용자 추가 프롬프트
   const [finalExtraPrompt, setFinalExtraPrompt] = useState("");
 
+  // USP 입력 보조
   const [competitorUrl, setCompetitorUrl] = useState("");
   const [competitorPaste, setCompetitorPaste] = useState("");
   const [uspLoading, setUspLoading] = useState(false);
@@ -76,10 +82,10 @@ export function useDetailPlannerState() {
 
   const normalizedUSP = useMemo(() => normalizeUsp(info.features), [info.features]);
   const [segments, setSegments] = useState<DetailImageSegment[]>([]);
-
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
   const { downloading, progress, exportZip } = useZipExport();
 
+  // canPlan: name/category + finalCuts 최소 1개
   const canPlan = useMemo(() => {
     const hasBasics = (info.name ?? "").trim() && (info.category ?? "").trim();
     const hasAnyFinal = !!finalCuts.cutout || !!finalCuts.lifestyle || !!finalCuts.model;
@@ -108,6 +114,7 @@ export function useDetailPlannerState() {
 
   const onChangeFinalExtraPrompt = (v: string) => {
     setFinalExtraPrompt(v);
+    // info에도 반영(기획안 prompt에 포함되도록)
     setInfo((p) => ({ ...p, detailExtraPrompt: v }));
   };
 
@@ -128,10 +135,7 @@ export function useDetailPlannerState() {
 
       const imgs: string[] = [];
       for (let i = 0; i < 3; i++) {
-        const url = await generateImage(prompt, modelType, "1:1", refs, {
-          allowText: false,
-          imageSize: "2K",
-        });
+        const url = await generateImage(prompt, modelType, "1:1", refs, { allowText: false, imageSize: "2K" });
         if (url) imgs.push(url);
       }
 
@@ -214,26 +218,21 @@ export function useDetailPlannerState() {
         updatedSegments[i] = { ...updatedSegments[i], isGenerating: true };
         setSegments([...updatedSegments]);
 
-        // 참고 이미지 과다 혼합 방지: 최종컷(최대 2) + extra(최대 1) + 공통ref(최대 1) = 총 4장
+        // 참고 이미지: 최종컷 + extraImages(최대 2) + 공통 referenceImages(보정)
         const refList: string[] = [];
-        if (finalCuts.cutout) refList.push(finalCuts.cutout);
-        if (finalCuts.lifestyle) refList.push(finalCuts.lifestyle);
-        if (!finalCuts.cutout && finalCuts.model) refList.push(finalCuts.model);
-        if (extraImages.length) refList.push(extraImages[0]);
-        if (info.referenceImages?.length && refList.length < 4) refList.push(info.referenceImages[0]);
+        for (const k of SHOT_KEYS) if (finalCuts[k]) refList.push(finalCuts[k]!);
+        if (extraImages.length) refList.push(...extraImages.slice(0, 2));
+        if (info.referenceImages?.length && refList.length < 3) {
+          refList.push(...info.referenceImages.slice(0, 3 - refList.length));
+        }
 
-const imageUrl = await generateImage(
-  updatedSegments[i].visualPrompt,
-  ModelType.PAID,
-  "9:16",
-  refList,
-  {
-    allowText: true,
-    imageSize: "2K",
-    segmentData: updatedSegments[i], // template 포함
-  },
-);
-
+        // ✅ 쿠팡 섹션 이미지 생성(allowText=true, keyMessage는 절대 렌더링하지 않도록 prompt에서 통제)
+        const imageUrl = await generateDetailSectionImage(
+          info,
+          updatedSegments[i],
+          modelType,
+          refList.length ? refList : info.referenceImages,
+        );
 
         updatedSegments[i] = {
           ...updatedSegments[i],

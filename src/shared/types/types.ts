@@ -26,7 +26,7 @@ export interface ProductShotConfig {
   prompt?: string; // 탭별 의도 입력
 }
 
-type SegmentTemplate =
+export type SegmentTemplate =
   | "HERO"
   | "PROBLEM"
   | "CORE_BENEFIT"

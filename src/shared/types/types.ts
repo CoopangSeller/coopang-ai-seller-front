@@ -15,8 +15,8 @@ export enum ModelType {
 export type DetailShotKey = "cutout" | "lifestyle" | "model";
 
 export interface Pricing {
-  originalPrice: string; // "39,900" 등 문자열로 유지
-  salePrice: string; // "29,900" 등 문자열로 유지
+  originalPrice: string;
+  salePrice: string;
 }
 
 export interface ProductShotConfig {
@@ -26,18 +26,33 @@ export interface ProductShotConfig {
   prompt?: string; // 탭별 의도 입력
 }
 
+type SegmentTemplate =
+  | "HERO"
+  | "PROBLEM"
+  | "CORE_BENEFIT"
+  | "PROOF_COMPARE"
+  | "PROOF_SPEC"
+  | "DETAIL"
+  | "HOW_TO"
+  | "TRUST"
+  | "CTA";
+
+
 export interface DetailImageSegment {
   id: string;
-  title: string;
-  logicalSections: string[];
-  keyMessage: string;
-  visualPrompt: string;
+   template: SegmentTemplate;   // ✅ 추가
+  title: string; // 실제로 “표시될 수 있는” 헤드라인 후보
+  logicalSections: string[]; // 서브카피/아이콘 설명 후보
+  keyMessage: string; // 내부 주제(Theme) 용도로도 활용 (단, 메타 문자열 방지 로직 있음)
+  visualPrompt: string; // 인정 프롬프트(이미지 연출/구도)
+
   imageUrl?: string;
   isGenerating?: boolean;
 
-  // 재생성/되돌리기 확장 여지
   history?: Array<{
     keyMessage: string;
+    title: string;
+    logicalSections: string[];
     visualPrompt: string;
     imageUrl?: string;
     createdAt: number;
@@ -47,35 +62,22 @@ export interface DetailImageSegment {
 export interface ProductInfo {
   name: string;
   category: string;
-
-  // legacy (있던 필드 유지)
   price: string;
-
-  // USP/특징
   features: string;
 
-  // 타겟
   targetGender: string[];
   targetAge: string[];
 
-  // 길이
   pageLength: PageLength;
 
-  // 공통 레퍼런스
-  referenceImages?: string[]; // base64 dataUrl
+  referenceImages: string[]; // base64 dataUrl or url
+  pricing: Pricing;
 
-  // ✅ 가격 구조화
-  pricing?: Pricing;
-
-  // ✅ Step2 컷 탭 상태
   shots: Record<DetailShotKey, ProductShotConfig>;
-}
 
-export interface ThumbnailConfig {
-  productName: string;
-  features: string;
-  style: "Clean" | "Lifestyle" | "Creative";
-  hasPerson: boolean;
-  textPosition: "top" | "center" | "bottom";
-  referenceImages?: string[];
+  /**
+   * Step3에서 사용자 추가 요청(상세 기획/생성에 반영)
+   * - 기존 상태/드래프트와 맞추기 위해 필수 필드로 둠(빈 문자열 가능)
+   */
+  detailExtraPrompt: string;
 }

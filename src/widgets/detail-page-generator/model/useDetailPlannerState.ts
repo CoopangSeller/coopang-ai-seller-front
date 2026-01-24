@@ -40,13 +40,9 @@ export function useDetailPlannerState() {
     model: null,
   });
 
-  // Step3: 사용자가 추가 업로드하는 이미지들
   const [extraImages, setExtraImages] = useState<string[]>([]);
-
-  // Step3: 사용자 추가 프롬프트
   const [finalExtraPrompt, setFinalExtraPrompt] = useState("");
 
-  // USP 입력 보조
   const [competitorUrl, setCompetitorUrl] = useState("");
   const [competitorPaste, setCompetitorPaste] = useState("");
   const [uspLoading, setUspLoading] = useState(false);
@@ -79,13 +75,11 @@ export function useDetailPlannerState() {
   );
 
   const normalizedUSP = useMemo(() => normalizeUsp(info.features), [info.features]);
-
   const [segments, setSegments] = useState<DetailImageSegment[]>([]);
 
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
   const { downloading, progress, exportZip } = useZipExport();
 
-  // canPlan: name/category + finalCuts 최소 1개
   const canPlan = useMemo(() => {
     const hasBasics = (info.name ?? "").trim() && (info.category ?? "").trim();
     const hasAnyFinal = !!finalCuts.cutout || !!finalCuts.lifestyle || !!finalCuts.model;
@@ -114,7 +108,6 @@ export function useDetailPlannerState() {
 
   const onChangeFinalExtraPrompt = (v: string) => {
     setFinalExtraPrompt(v);
-    // info에도 반영(기획안 prompt에 포함되도록)
     setInfo((p) => ({ ...p, detailExtraPrompt: v }));
   };
 
@@ -135,7 +128,10 @@ export function useDetailPlannerState() {
 
       const imgs: string[] = [];
       for (let i = 0; i < 3; i++) {
-        const url = await generateImage(prompt, modelType, "1:1", refs);
+        const url = await generateImage(prompt, modelType, "1:1", refs, {
+          allowText: false,
+          imageSize: "2K",
+        });
         if (url) imgs.push(url);
       }
 
@@ -188,11 +184,9 @@ export function useDetailPlannerState() {
   const handlePlan = async () => {
     setLoading(true);
     try {
-      // detailExtraPrompt는 이미 info에 반영됨. extraImages/최종컷은 “이미지 생성” 단계에서 참조.
       const result = await planDetailPage(info);
       setSegments(result);
       setStep(2);
-
     } catch (e) {
       console.error(e);
       alert("기획안 생성 중 오류가 발생했습니다.");
@@ -220,19 +214,26 @@ export function useDetailPlannerState() {
         updatedSegments[i] = { ...updatedSegments[i], isGenerating: true };
         setSegments([...updatedSegments]);
 
-        // 참고 이미지: 최종컷 + extraImages + 공통 referenceImages
+        // 참고 이미지 과다 혼합 방지: 최종컷(최대 2) + extra(최대 1) + 공통ref(최대 1) = 총 4장
         const refList: string[] = [];
+        if (finalCuts.cutout) refList.push(finalCuts.cutout);
+        if (finalCuts.lifestyle) refList.push(finalCuts.lifestyle);
+        if (!finalCuts.cutout && finalCuts.model) refList.push(finalCuts.model);
+        if (extraImages.length) refList.push(extraImages[0]);
+        if (info.referenceImages?.length && refList.length < 4) refList.push(info.referenceImages[0]);
 
-        for (const k of SHOT_KEYS) if (finalCuts[k]) refList.push(finalCuts[k]!);
-        if (extraImages.length) refList.push(...extraImages);
-        if (info.referenceImages?.length) refList.push(...info.referenceImages);
+const imageUrl = await generateImage(
+  updatedSegments[i].visualPrompt,
+  ModelType.PAID,
+  "9:16",
+  refList,
+  {
+    allowText: true,
+    imageSize: "2K",
+    segmentData: updatedSegments[i], // template 포함
+  },
+);
 
-        const imageUrl = await generateImage(
-          updatedSegments[i].visualPrompt,
-          modelType,
-          "9:16",
-          refList.length ? refList : info.referenceImages,
-        );
 
         updatedSegments[i] = {
           ...updatedSegments[i],

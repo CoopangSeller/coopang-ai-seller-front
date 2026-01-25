@@ -9,7 +9,7 @@ import {
 } from "@/shared/types/types";
 import { planDetailPage, generateDetailSectionImage } from "../api/detailPlannerGemini";
 import { heuristicUspFromPaste, tryServerCrawl } from "../lib/usp";
-import { buildCutPrompt } from "../lib/prompts";
+import { buildCutPrompt } from "../lib/cutPrompts";
 import { useZipExport } from "@/features/file/file-export";
 import { useDraft } from "@/features/draft/model/useDraft";
 import { generateImage } from "@/shared/api/gemini/geminiService";
@@ -19,6 +19,17 @@ const SHOT_KEYS: DetailShotKey[] = ["cutout", "lifestyle", "model"];
 
 function normalizeUsp(s: string) {
   return (s ?? "").trim();
+}
+
+function snapshot(seg: DetailImageSegment) {
+  return {
+    keyMessage: seg.keyMessage,
+    title: seg.title,
+    logicalSections: seg.logicalSections,
+    visualPrompt: seg.visualPrompt,
+    imageUrl: seg.imageUrl,
+    createdAt: Date.now(),
+  };
 }
 
 export function useDetailPlannerState() {
@@ -135,7 +146,10 @@ export function useDetailPlannerState() {
 
       const imgs: string[] = [];
       for (let i = 0; i < 3; i++) {
-        const url = await generateImage(prompt, modelType, "1:1", refs, { allowText: false, imageSize: "2K" });
+        const url = await generateImage(prompt, modelType, "1:1", refs, {
+          allowText: false,
+          imageSize: "2K",
+        });
         if (url) imgs.push(url);
       }
 
@@ -207,6 +221,24 @@ export function useDetailPlannerState() {
     });
   };
 
+  // ✅ 공용 레퍼런스 구성 (handleGenerateAll과 섹션 재생성에서 동일 사용)
+  const buildRefList = () => {
+    const refList: string[] = [];
+
+    // 최종컷 우선(과도 혼합 방지)
+    for (const k of SHOT_KEYS) if (finalCuts[k]) refList.push(finalCuts[k]!);
+
+    // extra 최대 2
+    if (extraImages.length) refList.push(...extraImages.slice(0, 2));
+
+    // 공통 referenceImages는 부족할 때만 채움(최대 3)
+    if (info.referenceImages?.length && refList.length < 3) {
+      refList.push(...info.referenceImages.slice(0, 3 - refList.length));
+    }
+
+    return refList;
+  };
+
   const handleGenerateAll = async () => {
     setLoading(true);
     setStep(3);
@@ -218,15 +250,8 @@ export function useDetailPlannerState() {
         updatedSegments[i] = { ...updatedSegments[i], isGenerating: true };
         setSegments([...updatedSegments]);
 
-        // 참고 이미지: 최종컷 + extraImages(최대 2) + 공통 referenceImages(보정)
-        const refList: string[] = [];
-        for (const k of SHOT_KEYS) if (finalCuts[k]) refList.push(finalCuts[k]!);
-        if (extraImages.length) refList.push(...extraImages.slice(0, 2));
-        if (info.referenceImages?.length && refList.length < 3) {
-          refList.push(...info.referenceImages.slice(0, 3 - refList.length));
-        }
+        const refList = buildRefList();
 
-        // ✅ 쿠팡 섹션 이미지 생성(allowText=true, keyMessage는 절대 렌더링하지 않도록 prompt에서 통제)
         const imageUrl = await generateDetailSectionImage(
           info,
           updatedSegments[i],
@@ -248,6 +273,135 @@ export function useDetailPlannerState() {
     }
 
     setLoading(false);
+  };
+
+  /**
+   * ✅ 섹션 1개만 재생성
+   * - seg.promptOverride가 있으면 visualPrompt 뒤에만 덧붙여 보완
+   * - 생성 성공 시 기존 imageUrl을 history에 저장 (undo용)
+   */
+  const regenerateOne = async (index: number) => {
+    // generating + history push + future clear
+    setSegments((prev) => {
+      const next = [...prev];
+      const cur = next[index];
+
+      const history = Array.isArray(cur.history) ? [...cur.history] : [];
+      history.unshift(snapshot(cur));
+
+      next[index] = {
+        ...cur,
+        isGenerating: true,
+        history: history.slice(0, 10),
+        future: [], // ✅ 새 생성은 redo 분기 끊기
+      };
+      return next;
+    });
+
+    try {
+      const refList = buildRefList();
+
+      // 가장 안전: prev 기반으로 seg를 읽기
+      let segForGen: DetailImageSegment | null = null;
+      setSegments((prev) => {
+        segForGen = prev[index];
+        return prev;
+      });
+      const seg = segForGen ?? segments[index];
+
+      const override = (seg.promptOverride || "").trim();
+      const mergedSeg: DetailImageSegment = override
+        ? { ...seg, visualPrompt: `${seg.visualPrompt}\n\n[보완 요청]\n${override}` }
+        : seg;
+
+      const imageUrl = await generateDetailSectionImage(
+        info,
+        mergedSeg,
+        modelType,
+        refList.length ? refList : info.referenceImages,
+      );
+
+      setSegments((prev) => {
+        const next = [...prev];
+        next[index] = {
+          ...next[index],
+          imageUrl: imageUrl ?? next[index].imageUrl,
+          isGenerating: false,
+        };
+        return next;
+      });
+    } catch (e) {
+      console.error("regenerateOne error", e);
+      setSegments((prev) => {
+        const next = [...prev];
+        next[index] = { ...next[index], isGenerating: false };
+        return next;
+      });
+    }
+  };
+
+
+
+  /**
+   * ✅ 섹션 1개 되돌리기(undo)
+   * - history에서 가장 최근 url 꺼내 복원
+   */
+  const undoOne = (index: number) => {
+    setSegments((prev) => {
+      const next = [...prev];
+      const cur = next[index];
+
+      const history = Array.isArray(cur.history) ? [...cur.history] : [];
+      if (!history.length) return prev;
+
+      const future = Array.isArray(cur.future) ? [...cur.future] : [];
+      future.unshift(snapshot(cur)); // ✅ 현재 상태를 redo 스택으로
+
+      const last = history.shift()!; // 가장 최근 과거 스냅샷
+
+      next[index] = {
+        ...cur,
+        keyMessage: last.keyMessage,
+        title: last.title,
+        logicalSections: last.logicalSections,
+        visualPrompt: last.visualPrompt,
+        imageUrl: last.imageUrl,
+        history,
+        future: future.slice(0, 10),
+      };
+      return next;
+    });
+  };
+
+  /**
+   * ✅ 섹션 1개 앞으로 돌리기(undo)
+   * - future 가장 최근 url 꺼내 복원
+   */
+  const redoOne = (index: number) => {
+    setSegments((prev) => {
+      const next = [...prev];
+      const cur = next[index];
+
+      const future = Array.isArray(cur.future) ? [...cur.future] : [];
+      if (!future.length) return prev;
+
+      const history = Array.isArray(cur.history) ? [...cur.history] : [];
+      history.unshift(snapshot(cur)); // ✅ 현재 상태를 undo 스택으로
+
+      const nextSnap = future.shift()!; // 가장 최근 redo 스냅샷
+
+      next[index] = {
+        ...cur,
+        keyMessage: nextSnap.keyMessage,
+        title: nextSnap.title,
+        logicalSections: nextSnap.logicalSections,
+        visualPrompt: nextSnap.visualPrompt,
+        imageUrl: nextSnap.imageUrl,
+        history: history.slice(0, 10),
+        future,
+      };
+      return next;
+    });
   };
 
   return {
@@ -287,6 +441,11 @@ export function useDetailPlannerState() {
     handlePlan,
     updateSegment,
     handleGenerateAll,
+
+    // ✅ 신규 기능 노출
+    regenerateOne,
+    undoOne,
+    redoOne,
 
     canPlan,
     resetAll,

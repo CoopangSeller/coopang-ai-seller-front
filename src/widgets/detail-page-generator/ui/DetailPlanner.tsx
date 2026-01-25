@@ -63,6 +63,10 @@ const DetailPlanner: React.FC = () => {
           progress={s.progress}
           exportZip={s.exportZip}
           onBack={() => s.setStep(2)}
+          updateSegment={s.updateSegment}
+          onRegenerateOne={s.regenerateOne}
+          onUndoOne={s.undoOne}
+          onRedoOne={s.redoOne}
         />
       )}
 

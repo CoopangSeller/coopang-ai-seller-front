@@ -1,5 +1,5 @@
 // src/widgets/detail-page-generator/model/useDetailPlannerState.ts
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DetailImageSegment,
   DetailShotKey,
@@ -93,6 +93,11 @@ export function useDetailPlannerState() {
 
   const normalizedUSP = useMemo(() => normalizeUsp(info.features), [info.features]);
   const [segments, setSegments] = useState<DetailImageSegment[]>([]);
+  // ✅ 추가
+  const segmentsRef = useRef<DetailImageSegment[]>([]);
+  useEffect(() => {
+    segmentsRef.current = segments;
+  }, [segments]);
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
   const { downloading, progress, exportZip } = useZipExport();
 
@@ -213,13 +218,20 @@ export function useDetailPlannerState() {
     }
   };
 
-  const updateSegment = (index: number, field: keyof DetailImageSegment, value: string) => {
-    setSegments((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], [field]: value } as DetailImageSegment;
-      return next;
-    });
-  };
+const HISTORY_LIMIT = 10;
+const VERSIONED_FIELDS: Array<keyof DetailImageSegment> = ["keyMessage"];
+
+const updateSegment = (
+  index: number,
+  field: keyof DetailImageSegment,
+  value: string,
+) => {
+  setSegments((prev) => {
+    const next = [...prev];
+    next[index] = { ...next[index], [field]: value } as DetailImageSegment;
+    return next;
+  });
+};
 
   // ✅ 공용 레퍼런스 구성 (handleGenerateAll과 섹션 재생성에서 동일 사용)
   const buildRefList = () => {
@@ -239,38 +251,73 @@ export function useDetailPlannerState() {
     return refList;
   };
 
+  /**
+   * API 요청 동시 요청으로 이미지 전체 생성 속도 증가 시키기
+   */
+  const runWithConcurrency = async <T,>(
+    tasks: Array<() => Promise<T>>,
+    limit: number,
+    onSettled?: (i: number, r: PromiseSettledResult<T>) => void,
+  ) => {
+    const results: PromiseSettledResult<T>[] = new Array(tasks.length);
+    let next = 0;
+
+    const worker = async () => {
+      while (true) {
+        const i = next++;
+        if (i >= tasks.length) return;
+        try {
+          const v = await tasks[i]();
+          const r: PromiseFulfilledResult<T> = { status: "fulfilled", value: v };
+          results[i] = r;
+          onSettled?.(i, r);
+        } catch (e) {
+          const r: PromiseRejectedResult = { status: "rejected", reason: e };
+          results[i] = r;
+          onSettled?.(i, r);
+        }
+      }
+    };
+
+    await Promise.all(Array.from({ length: limit }, worker));
+    return results;
+  };
+
   const handleGenerateAll = async () => {
     setLoading(true);
     setStep(3);
 
-    const updatedSegments = [...segments];
+    // 시작 시 generating 표시
+    setSegments((prev) => prev.map((s) => ({ ...s, isGenerating: true })));
 
-    for (let i = 0; i < updatedSegments.length; i++) {
-      try {
-        updatedSegments[i] = { ...updatedSegments[i], isGenerating: true };
-        setSegments([...updatedSegments]);
+    const refList = buildRefList();
+    const refs = refList.length ? refList : info.referenceImages;
 
-        const refList = buildRefList();
+    const tasks = segments.map((seg, i) => async () => {
+      const imageUrl = await generateDetailSectionImage(info, seg, modelType, refs);
+      return imageUrl ?? null;
+    });
 
-        const imageUrl = await generateDetailSectionImage(
-          info,
-          updatedSegments[i],
-          modelType,
-          refList.length ? refList : info.referenceImages,
-        );
+    // 동시성 2~3 권장 (API 실패율/속도 균형)
+    const CONCURRENCY = 3;
 
-        updatedSegments[i] = {
-          ...updatedSegments[i],
-          imageUrl: imageUrl ?? undefined,
-          isGenerating: false,
-        };
-        setSegments([...updatedSegments]);
-      } catch (e) {
-        console.error("Generation error for segment", i, e);
-        updatedSegments[i] = { ...updatedSegments[i], isGenerating: false };
-        setSegments([...updatedSegments]);
+    await runWithConcurrency(tasks, CONCURRENCY, (i, r) => {
+      if (r.status === "fulfilled") {
+        const url = r.value;
+        setSegments((prev) => {
+          const next = [...prev];
+          next[i] = { ...next[i], imageUrl: url ?? next[i].imageUrl, isGenerating: false };
+          return next;
+        });
+      } else {
+        console.error("Generation error for segment", i, r.reason);
+        setSegments((prev) => {
+          const next = [...prev];
+          next[i] = { ...next[i], isGenerating: false };
+          return next;
+        });
       }
-    }
+    });
 
     setLoading(false);
   };
@@ -280,25 +327,25 @@ export function useDetailPlannerState() {
    * - seg.promptOverride가 있으면 visualPrompt 뒤에만 덧붙여 보완
    * - 생성 성공 시 기존 imageUrl을 history에 저장 (undo용)
    */
-  const regenerateOne = async (index: number) => {
+const regenerateOne = async (index: number) => {
     // generating + history push + future clear
-    setSegments((prev) => {
+  setSegments((prev) => {
       const next = [...prev];
       const cur = next[index];
 
-      const history = Array.isArray(cur.history) ? [...cur.history] : [];
-      history.unshift(snapshot(cur));
+    const history = Array.isArray(cur.history) ? [...cur.history] : [];
+    history.unshift(snapshot(cur));
 
-      next[index] = {
-        ...cur,
-        isGenerating: true,
-        history: history.slice(0, 10),
+    next[index] = {
+      ...cur,
+      isGenerating: true,
+      history: history.slice(0, 10),
         future: [], // ✅ 새 생성은 redo 분기 끊기
-      };
-      return next;
-    });
+    };
+    return next;
+  });
 
-    try {
+  try {
       const refList = buildRefList();
 
       // 가장 안전: prev 기반으로 seg를 읽기
@@ -314,31 +361,33 @@ export function useDetailPlannerState() {
         ? { ...seg, visualPrompt: `${seg.visualPrompt}\n\n[보완 요청]\n${override}` }
         : seg;
 
-      const imageUrl = await generateDetailSectionImage(
-        info,
-        mergedSeg,
-        modelType,
+    const imageUrl = await generateDetailSectionImage(
+      info,
+      mergedSeg,
+      modelType,
         refList.length ? refList : info.referenceImages,
-      );
+    );
+    console.log('hiih')
 
-      setSegments((prev) => {
-        const next = [...prev];
-        next[index] = {
+    setSegments((prev) => {
+      const next = [...prev];
+      next[index] = {
           ...next[index],
           imageUrl: imageUrl ?? next[index].imageUrl,
-          isGenerating: false,
-        };
-        return next;
-      });
-    } catch (e) {
+        isGenerating: false,
+      };
+      return next;
+    });
+  } catch (e) {
       console.error("regenerateOne error", e);
-      setSegments((prev) => {
-        const next = [...prev];
+    setSegments((prev) => {
+      const next = [...prev];
         next[index] = { ...next[index], isGenerating: false };
-        return next;
-      });
-    }
-  };
+      return next;
+    });
+  }
+};
+
 
 
 

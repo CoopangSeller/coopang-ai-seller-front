@@ -40,7 +40,7 @@ export type SegmentTemplate =
 
 export interface DetailImageSegment {
   id: string;
-   template: SegmentTemplate;   // ✅ 추가
+  template: SegmentTemplate;   // ✅ 추가
   title: string; // 실제로 “표시될 수 있는” 헤드라인 후보
   logicalSections: string[]; // 서브카피/아이콘 설명 후보
   keyMessage: string; // 내부 주제(Theme) 용도로도 활용 (단, 메타 문자열 방지 로직 있음)
@@ -49,7 +49,19 @@ export interface DetailImageSegment {
   imageUrl?: string;
   isGenerating?: boolean;
 
+  promptOverride?: string;
+
   history?: Array<{
+    keyMessage: string;
+    title: string;
+    logicalSections: string[];
+    visualPrompt: string;
+    imageUrl?: string;
+    createdAt: number;
+  }>;
+
+  // ✅ 추가: redo 스택
+  future?: Array<{
     keyMessage: string;
     title: string;
     logicalSections: string[];

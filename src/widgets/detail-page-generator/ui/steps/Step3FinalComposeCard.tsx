@@ -281,16 +281,6 @@ const Step3FinalComposeCard: React.FC<Props> = ({
               ))}
             </div>
           </div>
-
-          {/* Plan button */}
-          <button
-            type="button"
-            onClick={onNext}
-            // disabled={!canPlan}
-            className="w-full py-4 bg-blue-600 text-white font-black rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-          >
-            기획안 생성하기
-          </button>
         </div>
       )}
     </div>

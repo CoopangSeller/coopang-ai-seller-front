@@ -170,7 +170,7 @@ const ResultPreview: React.FC<Props> = ({
                     <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm pointer-events-none rounded-2xl">
                       <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin mb-3" />
                       <p className="text-white text-sm font-black tracking-tight">
-                        AI가 이 섹션을 다시 만들고 있어요
+                        AI가 이미지를 만들고 있어요
                       </p>
                     </div>
                   )}

@@ -13,9 +13,12 @@ import { buildCutPrompt } from "../lib/cutPrompts";
 import { useZipExport } from "@/features/file/file-export";
 import { useDraft } from "@/features/draft/model/useDraft";
 import { generateImage } from "@/shared/api/gemini/geminiService";
+import { withTimeout } from "@/shared/lib/async/withTimeout";
+import { isModelOverloadedError } from "@/shared/api/gemini/lib/isModelOverloadedError";
 
 const DRAFT_KEY = "detail-planner:v2";
 const SHOT_KEYS: DetailShotKey[] = ["cutout", "lifestyle", "model"];
+const MAX_PLAN_MS = 120000; // 120초 까지만 기획안 작성 대기
 
 function normalizeUsp(s: string) {
   return (s ?? "").trim();
@@ -34,7 +37,8 @@ function snapshot(seg: DetailImageSegment) {
 
 export function useDetailPlannerState() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [loading, setLoading] = useState(false);
+  const [isPlanning, setIsPlanning] = useState(false);
+  const planRunIdRef = useRef(0); // ✅ 요청 식별자
 
   const [modelType, setModelType] = useState<ModelType>(ModelType.FREE);
 
@@ -189,6 +193,12 @@ export function useDetailPlannerState() {
     }
   };
 
+  const cancelPlanning = () => {
+    planRunIdRef.current++;     // 진행 중 요청 무효화
+    setIsPlanning(false);       // 오버레이 끄기
+    setStep(1);                 // Step1로 복귀 
+  };
+
   const resetAll = () => {
     clearInfoDraft();
     setInfo(initialInfo);
@@ -205,7 +215,7 @@ export function useDetailPlannerState() {
   };
 
   const handlePlan = async () => {
-    setLoading(true);
+    setIsPlanning(true);
     try {
       const result = await planDetailPage(info);
       setSegments(result);
@@ -214,9 +224,62 @@ export function useDetailPlannerState() {
       console.error(e);
       alert("기획안 생성 중 오류가 발생했습니다.");
     } finally {
-      setLoading(false);
+      setIsPlanning(false);
     }
   };
+
+    /**
+   * ✅ Step2(기획안 리뷰) 없이: 기획안 생성 → 곧바로 전체 이미지 생성 → Step3로 진입
+   */
+  const handlePlanAndGenerateAll = async () => {
+    if (isPlanning) return;
+
+    const runId = ++planRunIdRef.current;
+    setIsPlanning(true);
+    setStep(3);
+
+    try {
+      const planned = await withTimeout(
+        planDetailPage(info),
+        MAX_PLAN_MS
+      );
+      
+      // ❗ 중단 후 늦게 온 응답 무시
+      if (runId !== planRunIdRef.current) return;
+
+      // 기획안 끝나면 로딩 종료
+      setIsPlanning(false);
+    
+      // placeholder 먼저 깔아두고 생성 시작(섹션 자리부터 보이게)
+      setSegments(planned.map((s) => ({ ...s, isGenerating: true })));
+
+      await generateAllSections(planned);
+    } catch (e: any) {
+      if (runId !== planRunIdRef.current) return;
+
+        setIsPlanning(false);
+
+      if (isModelOverloadedError(e)) {
+        alert(
+          "현재 AI 서버가 혼잡하여 기획을 생성하지 못했습니다.\n\n" +
+          "입력 문제는 아니며, 잠시 후 다시 시도해주세요."
+        );
+      } else if (e.message === "TIMEOUT") {
+        alert(
+          "기획 생성이 너무 오래 걸리고 있습니다.\n\n" +
+          "AI 서버 혼잡으로 인한 현상이며,\n" +
+          "잠시 후 다시 시도해주세요."
+        );
+      } else {
+        alert("상세페이지 생성 중 오류가 발생했습니다.");
+      }
+
+      setStep(1);
+    } finally {
+      setIsPlanning(false);
+    }
+  };
+
 
 const HISTORY_LIMIT = 10;
 const VERSIONED_FIELDS: Array<keyof DetailImageSegment> = ["keyMessage"];
@@ -283,23 +346,21 @@ const updateSegment = (
     return results;
   };
 
-  const handleGenerateAll = async () => {
-    setLoading(true);
-    setStep(3);
-
-    // 시작 시 generating 표시
-    setSegments((prev) => prev.map((s) => ({ ...s, isGenerating: true })));
-
+  /**
+   * ✅ 내부 실행 함수: 주어진 segments로 전체 이미지 생성
+   * - React state 반영 타이밍 이슈(방금 setSegments 했는데 segments가 아직 이전값인 문제)를 피하려고
+   *   segments를 인자로 받는다.
+   */
+  const generateAllSections = async (segmentsToUse: DetailImageSegment[]) => {
     const refList = buildRefList();
     const refs = refList.length ? refList : info.referenceImages;
 
-    const tasks = segments.map((seg, i) => async () => {
+    const tasks = segmentsToUse.map((seg) => async () => {
       const imageUrl = await generateDetailSectionImage(info, seg, modelType, refs);
       return imageUrl ?? null;
     });
 
-    // 동시성 2~3 권장 (API 실패율/속도 균형)
-    const CONCURRENCY = 3;
+    const CONCURRENCY = 4;
 
     await runWithConcurrency(tasks, CONCURRENCY, (i, r) => {
       if (r.status === "fulfilled") {
@@ -318,32 +379,42 @@ const updateSegment = (
         });
       }
     });
-
-    setLoading(false);
   };
+
+  // const handleGenerateAll = async () => {
+  //   setIsPlanning(true);
+  //   setStep(3);
+
+  //   // 시작 시 generating 표시
+  //   setSegments((prev) => prev.map((s) => ({ ...s, isGenerating: true })));
+
+  //   await generateAllSections(segments);
+
+  //   setIsPlanning(false);
+  // };
 
   /**
    * ✅ 섹션 1개만 재생성
    * - seg.promptOverride가 있으면 visualPrompt 뒤에만 덧붙여 보완
    * - 생성 성공 시 기존 imageUrl을 history에 저장 (undo용)
    */
-const regenerateOne = async (index: number) => {
-    // generating + history push + future clear
-  setSegments((prev) => {
-      const next = [...prev];
-      const cur = next[index];
+  const regenerateOne = async (index: number) => {
+      // generating + history push + future clear
+    setSegments((prev) => {
+        const next = [...prev];
+        const cur = next[index];
 
-    const history = Array.isArray(cur.history) ? [...cur.history] : [];
-    history.unshift(snapshot(cur));
+      const history = Array.isArray(cur.history) ? [...cur.history] : [];
+      history.unshift(snapshot(cur));
 
-    next[index] = {
-      ...cur,
-      isGenerating: true,
-      history: history.slice(0, 10),
-        future: [], // ✅ 새 생성은 redo 분기 끊기
-    };
-    return next;
-  });
+      next[index] = {
+        ...cur,
+        isGenerating: true,
+        history: history.slice(0, 10),
+          future: [], // ✅ 새 생성은 redo 분기 끊기
+      };
+      return next;
+    });
 
   try {
       const refList = buildRefList();
@@ -456,7 +527,8 @@ const regenerateOne = async (index: number) => {
   return {
     step,
     setStep,
-    loading,
+    isPlanning,
+    setIsPlanning,
     downloading,
     progress,
     exportZip,
@@ -488,8 +560,9 @@ const regenerateOne = async (index: number) => {
 
     onSuggestUSP,
     handlePlan,
+    handlePlanAndGenerateAll,
     updateSegment,
-    handleGenerateAll,
+    // handleGenerateAll,
 
     // ✅ 신규 기능 노출
     regenerateOne,
@@ -498,5 +571,6 @@ const regenerateOne = async (index: number) => {
 
     canPlan,
     resetAll,
+    cancelPlanning,
   };
 }

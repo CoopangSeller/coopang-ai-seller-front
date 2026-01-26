@@ -88,6 +88,16 @@ const StepInput: React.FC<Props> = (p) => {
         onNext={p.onNext}
         canPlan={p.canPlan}
       />
+
+      {/* Plan button */}
+      <button
+        type="button"
+        onClick={p.onNext}
+        // disabled={!canPlan}
+        className="w-full py-4 bg-blue-600 text-white font-black rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+      >
+        상세페이지 생성하기
+      </button>
     </div>
   );
 };

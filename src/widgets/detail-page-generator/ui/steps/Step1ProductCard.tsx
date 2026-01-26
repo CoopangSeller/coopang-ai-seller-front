@@ -20,17 +20,7 @@ function normalizeWhitespace(s: string) {
   return (s ?? "").replace(/\s+/g, " ").trim();
 }
 
-const Step1ProductCard: React.FC<Props> = ({
-  info,
-  setInfo,
-  competitorUrl,
-  setCompetitorUrl,
-  competitorPaste,
-  setCompetitorPaste,
-  uspLoading,
-  onSuggestUSP,
-  resetAll,
-}) => {
+const Step1ProductCard: React.FC<Props> = ({ info, setInfo, resetAll }) => {
   const [open, setOpen] = useState(true);
 
   const toggleSelection = (
@@ -187,44 +177,6 @@ const Step1ProductCard: React.FC<Props> = ({
               value={info.features}
               onChange={(e) => setInfo({ ...info, features: e.target.value })}
             />
-
-            <div className="mt-4 p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-3">
-              <div className="text-sm font-extrabold text-slate-800">
-                USP 자동 작성 (쿠팡 참고 상품)
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <input
-                  className="w-full px-4 py-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                  placeholder="쿠팡 참고 상품 URL (선택)"
-                  value={competitorUrl}
-                  onChange={(e) => setCompetitorUrl(e.target.value)}
-                />
-                <button
-                  type="button"
-                  onClick={onSuggestUSP}
-                  disabled={uspLoading}
-                  className="px-4 py-3 rounded-lg font-extrabold bg-slate-900 text-white hover:bg-slate-950 disabled:opacity-50"
-                >
-                  {uspLoading ? "분석 중..." : "AI로 USP 작성하기"}
-                </button>
-              </div>
-
-              <textarea
-                rows={4}
-                className="w-full px-4 py-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                placeholder={[
-                  "크롤링 없이 1차는 ‘복붙’ 방식입니다.",
-                  "쿠팡 페이지에서 보이는 소구점/스펙/후기 키워드 등을 아래에 붙여넣고 실행하세요.",
-                ].join("\n")}
-                value={competitorPaste}
-                onChange={(e) => setCompetitorPaste(e.target.value)}
-              />
-
-              <div className="text-xs text-slate-500">
-                * 서버에 크롤링 프록시를 붙이면(URL만 넣고) 자동화 가능합니다.
-              </div>
-            </div>
           </div>
 
           {/* 타겟 */}

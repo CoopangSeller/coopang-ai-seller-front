@@ -58,7 +58,7 @@ const Step3FinalComposeCard: React.FC<Props> = ({
   onNext,
   canPlan,
 }) => {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="bg-white p-6 md:p-8 rounded-2xl shadow-xl border border-slate-100">
@@ -286,18 +286,11 @@ const Step3FinalComposeCard: React.FC<Props> = ({
           <button
             type="button"
             onClick={onNext}
-            disabled={!canPlan}
+            // disabled={!canPlan}
             className="w-full py-4 bg-blue-600 text-white font-black rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
             기획안 생성하기
           </button>
-
-          {!canPlan && (
-            <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3">
-              상품명/카테고리 입력 + 최종 컷(누끼/활용/모델 중 최소 1개) 선택이
-              필요합니다.
-            </div>
-          )}
         </div>
       )}
     </div>

@@ -46,7 +46,7 @@ const Step2CutStudioCard: React.FC<Props> = ({
   onGenerateCut,
   onPickFinalCut,
 }) => {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
 
   const currentShot = info.shots[cutTab];
 
@@ -157,9 +157,6 @@ const Step2CutStudioCard: React.FC<Props> = ({
 
           {/* 레퍼런스 업로드 */}
           <div className="space-y-3">
-            <div className="text-sm font-extrabold text-slate-900">
-              레퍼런스 이미지 (탭별)
-            </div>
             <ReferenceImageUpload
               value={currentShot.referenceImages ?? []}
               onChange={(imgs) =>

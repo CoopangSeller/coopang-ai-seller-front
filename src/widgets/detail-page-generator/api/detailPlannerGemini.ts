@@ -153,6 +153,20 @@ function buildCoupangSectionImagePrompt(info: ProductInfo, seg: DetailImageSegme
   const title = (seg.title || "").trim();
   const bullets = (seg.logicalSections || []).filter(Boolean).slice(0, 3);
 
+  const identityLock = 
+     [
+        "[REFERENCE IMAGE LOCK (HIGHEST PRIORITY)]",
+        "- Match the product in the reference images EXACTLY.",
+        "- Do NOT change: shape/silhouette, proportions, color, material, texture, label/logo placement, number of parts, openings/closures.",
+        "- Do NOT redesign the product. Do NOT generate a different model/variant.",
+        "- Do NOT add/remove accessories unless they are clearly present in the reference images.",
+        "- Single product only (no duplicates).",
+        "- Keep the product as the main subject and unobstructed.",
+        
+        "[PRODUCT CONSISTENCY]",
+        "- Keep the product consistent and realistic. Do not invent new parts.",
+      ].join("\n")
+
   const themeHint = themeToken
     ? [
         `Theme token (DO NOT PRINT THIS TEXT): "${themeToken}"`,
@@ -191,6 +205,8 @@ function buildCoupangSectionImagePrompt(info: ProductInfo, seg: DetailImageSegme
   return [
     "Create a single high-conversion Coupang mobile detail-section image.",
     "Professional commercial photography + clean editorial design (Korean e-commerce).",
+    "",
+    identityLock,
     "",
     themeHint,
     "",

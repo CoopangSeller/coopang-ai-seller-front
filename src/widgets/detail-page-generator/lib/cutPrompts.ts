@@ -16,6 +16,18 @@ export function buildCutPrompt(args: {
 
   const base = [
     `Create a professional ecommerce image for "${safeLine(productName, 80)}" (${safeLine(category, 40)}).`,
+
+    "[REFERENCE IMAGE LOCK (HIGHEST PRIORITY)]",
+    "- Match the product in the reference images EXACTLY.",
+    "- Do NOT change: shape/silhouette, proportions, color, material, texture, label/logo placement, number of parts, openings/closures.",
+    "- Do NOT redesign the product. Do NOT generate a different model/variant.",
+    "- Do NOT add/remove accessories unless they are clearly present in the reference images.",
+    "- Single product only (no duplicates).",
+    "- Keep the product as the main subject and unobstructed.",
+    
+    "[PRODUCT CONSISTENCY]",
+    "- Keep the product consistent and realistic. Do not invent new parts.",
+
     "High sharpness, clean edges, realistic materials.",
     "No duplicated products. No distorted shapes. No broken anatomy.",
     "No brand logos. No readable text generated inside the image.",

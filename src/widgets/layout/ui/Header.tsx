@@ -1,8 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { RecentPagesMenu } from "@/features/recent-pages/ui/RecentPagesMenu";
 import { getRecentPages } from "@/features/recent-pages/model/recentPages";
+import { clearDraftsAndUiCacheExceptAuth } from "@/shared/lib/storage/clearAppStorageExceptAuth";
 
 export type AppMenuKey = "detail" | "thumbnail";
+
 type MenuItem = { key: AppMenuKey; label: string };
 
 type Props = {
@@ -32,6 +35,7 @@ const Header: React.FC<Props> = ({
   brandTag = "AI SELLER TOOLKIT",
   menuItems = DEFAULT_MENU,
 }) => {
+  const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
   const [recentOpen, setRecentOpen] = useState(false);
@@ -73,13 +77,24 @@ const Header: React.FC<Props> = ({
       >
         {/* Brand */}
         <div className="flex items-center gap-3 min-w-0">
-          <div className="relative w-11 h-11 rounded-2xl bg-slate-900 shadow-lg overflow-hidden">
+          {/* ✅ 로고 버튼화 (초기화 + 이동) */}
+          <button
+            type="button"
+            aria-label="상세페이지 제작으로 이동"
+            onClick={() => {
+              clearDraftsAndUiCacheExceptAuth();
+              navigate("/", { replace: true });
+            }}
+            className="relative w-11 h-11 rounded-2xl bg-slate-900 shadow-lg overflow-hidden
+               focus:outline-none focus:ring-2 focus:ring-blue-500
+               transition-transform hover:scale-[1.03] active:scale-95"
+          >
             <div className="absolute inset-0 bg-gradient-to-br from-blue-600/80 via-sky-400/30 to-transparent" />
             <div className="absolute inset-0 flex items-center justify-center text-white font-black tracking-tight">
               <span className="text-lg">S</span>
             </div>
             <div className="absolute -right-1 -bottom-1 w-3 h-3 bg-sky-400 rounded-full ring-2 ring-white" />
-          </div>
+          </button>
 
           <div className="min-w-0">
             <div className="flex items-center gap-2 min-w-0">

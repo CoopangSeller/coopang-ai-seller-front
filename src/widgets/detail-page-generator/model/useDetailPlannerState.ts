@@ -20,7 +20,7 @@ const DRAFT_KEY = "detail-planner:v2";
 const SHOT_KEYS: DetailShotKey[] = ["cutout", "lifestyle", "model"];
 
 /** 기획 최대 대기 시간 */
-const MAX_PLAN_MS = 60_000;
+const MAX_PLAN_MS = 48_000;
 
 /** USP 입력 정규화 */
 function normalizeUsp(s: string) {
@@ -281,6 +281,9 @@ export function useDetailPlannerState() {
 
       // placeholder 먼저 깔아두고 생성 시작
       setSegments(planned.map((s) => ({ ...s, isGenerating: true })));
+
+      // 이미지 생성시에는 로딩 사라짐
+      setIsPlanning(false);
 
       await generateAllSections({
         segmentsToUse: planned,

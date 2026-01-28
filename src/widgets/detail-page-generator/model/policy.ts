@@ -1,12 +1,12 @@
-import { withTimeout, retryOnce } from "@/shared/lib/async";
+import { withTimeout, retryOnce, TimeoutError} from "@/shared/lib/async";
 import { runWithConcurrency } from "@/shared/lib/async/runWithConcurrency";
 import { isModelOverloadedError } from "@/shared/api/gemini/lib/isModelOverloadedError";
 import { planDetailPage, generateDetailSectionImage } from "../api/detailPlannerGemini";
 import type { DetailImageSegment, ModelType, ProductInfo } from "@/shared/types/types";
 
 /** Timeout 에러 판별(문자열 비교 금지) */
-export const isTimeoutError = (e: unknown) =>
-  e instanceof Error && e.name === "TimeoutError";
+export const isTimeoutError = (e: unknown): e is TimeoutError =>
+  e instanceof TimeoutError;
 
 /** 모델/정책 상수(한 곳에서만 관리) */
 export const MODELS = {
@@ -28,12 +28,12 @@ export async function planWithPolicy(args: {
   const { info, maxPlanMs } = args;
 
   try {
-    return await withTimeout(planDetailPage(info, MODELS.PLAN_PRIMARY), maxPlanMs);
+    return await withTimeout(() => planDetailPage(info, MODELS.PLAN_PRIMARY), maxPlanMs);
   } catch (e) {
     if (!isTimeoutError(e)) throw e;
 
     return await withTimeout(
-      planDetailPage(info, MODELS.PLAN_FALLBACK),
+      () => planDetailPage(info, MODELS.PLAN_FALLBACK),
       Math.min(maxPlanMs, 30_000),
     );
   }
@@ -88,7 +88,7 @@ export async function imageWithPolicy(args: {
 
   try {
     return await retryOnce(
-      () => withTimeout(primaryRun(), primaryTimeoutMs),
+      () => withTimeout(() => primaryRun(), primaryTimeoutMs),
       {
         // timeout은 retry하지 말고 바로 fallback로 넘긴다
         shouldRetry: (e) => !isTimeoutError(e) && !isModelOverloadedError(e),
@@ -99,7 +99,7 @@ export async function imageWithPolicy(args: {
     if (isModelOverloadedError(e)) throw e;
     if (!isTimeoutError(e)) throw e;
 
-    return await withTimeout(fallbackRun(), fallbackTimeoutMs);
+    return await withTimeout(() => fallbackRun(), fallbackTimeoutMs);
   }
 }
 

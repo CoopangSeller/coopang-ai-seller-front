@@ -1,15 +1,13 @@
 // src/shared/lib/async/withTimeout.ts
-export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const id = setTimeout(() => reject(new Error("TIMEOUT")), ms);
-    promise
-      .then((v) => {
-        clearTimeout(id);
-        resolve(v);
-      })
-      .catch((e) => {
-        clearTimeout(id);
-        reject(e);
-      });
+import { TimeoutError } from "./customErrors";
+
+export function withTimeout<T>(factory: () => Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const id = setTimeout(() => reject(new TimeoutError(ms)), ms);
+
+    factory()
+      .then(resolve)
+      .catch(reject)
+      .finally(() => clearTimeout(id));
   });
 }

@@ -10,7 +10,7 @@ export type GenerateImageOptions = {
    * false: 텍스트 금지(강한 네거티브 프롬프트 추가)
    */
   allowText?: boolean;
-  imageSize?: "1K" | "2K" | "4K";
+  imageSize?: string;
   modelOverride?: string; // ✅ 추가
 };
 

@@ -1,5 +1,5 @@
 import { lsGet, lsSet } from "@/shared/lib/storage/storage";
-import { STORAGE_KEYS } from "@/shared/config/storageKyes";
+import { STORAGE_KEYS } from "@/shared/config/storageKeys";
 
 export type RecentPage = {
   key: string;        // "detail" | "thumbnail" 같은 내부키

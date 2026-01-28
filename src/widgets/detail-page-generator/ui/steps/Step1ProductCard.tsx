@@ -109,62 +109,6 @@ const Step1ProductCard: React.FC<Props> = ({ info, setInfo, resetAll }) => {
             </div>
           </div>
 
-          {/* 가격 */}
-          <div className="space-y-3">
-            <div className="text-sm font-semibold text-slate-700">
-              가격 정보 (선택)
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500">
-                  정상가
-                </label>
-                <input
-                  type="text"
-                  placeholder="예: 39,900"
-                  className="w-full px-4 py-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500"
-                  value={info.pricing?.originalPrice ?? ""}
-                  onChange={(e) =>
-                    setInfo((p) => ({
-                      ...p,
-                      pricing: {
-                        ...(p.pricing as Pricing),
-                        originalPrice: e.target.value,
-                        salePrice: p.pricing?.salePrice ?? "",
-                      },
-                    }))
-                  }
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500">
-                  할인가
-                </label>
-                <input
-                  type="text"
-                  placeholder="예: 29,900"
-                  className="w-full px-4 py-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500"
-                  value={info.pricing?.salePrice ?? ""}
-                  onChange={(e) =>
-                    setInfo((p) => ({
-                      ...p,
-                      pricing: {
-                        ...(p.pricing as Pricing),
-                        originalPrice: p.pricing?.originalPrice ?? "",
-                        salePrice: e.target.value,
-                      },
-                    }))
-                  }
-                />
-              </div>
-            </div>
-            <div className="text-xs text-slate-500">
-              * 가격은 기획안에서 “일부 섹션에만” 자연스럽게 노출되도록
-              제어합니다.
-            </div>
-          </div>
-
           {/* USP */}
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-slate-700">

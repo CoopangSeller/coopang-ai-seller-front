@@ -1,10 +1,19 @@
 import React, { useMemo, useState } from "react";
 import { ReferenceImageUpload } from "@/features/file/image-upload";
-import { ThumbnailConfig, ModelType } from "@/shared/types/types";
+import { ModelType } from "@/shared/types/types";
 import { generateImage } from "@/shared/api/gemini/geminiService";
 
 import { useDraft } from "@/features/draft/model/useDraft";
-import { STORAGE_KEYS } from "@/shared/config/storageKyes";
+import { STORAGE_KEYS } from "@/shared/config/storageKeys";
+
+type ThumbnailConfig = {
+  productName: string;
+  features: string;
+  style: UiStyle;
+  hasPerson: boolean;
+  textPosition: "top" | "middle" | "bottom";
+  referenceImages: string[];
+};
 
 /**
  * Gemini 썸네일 전용 프롬프트 구조
@@ -238,7 +247,7 @@ const ThumbnailGenerator: React.FC = () => {
         promptPreview,
         modelType,
         "1:1",
-        config.referenceImages
+        config.referenceImages,
       );
 
       setResultImage(imageUrl);

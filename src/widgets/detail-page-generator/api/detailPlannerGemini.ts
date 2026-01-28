@@ -207,7 +207,13 @@ function buildCoupangSectionImagePrompt(info: ProductInfo, seg: DetailImageSegme
     .join("\n");
 }
 
-export async function planDetailPage(info: ProductInfo): Promise<DetailImageSegment[]> {
+/**
+ * 기획안 구성
+ */
+export async function planDetailPage(
+  info: ProductInfo,
+  model: string,
+): Promise<DetailImageSegment[]> {
   const prompt = buildCoupangPlanPrompt(info);
 
   const schema = {
@@ -225,64 +231,36 @@ export async function planDetailPage(info: ProductInfo): Promise<DetailImageSegm
     },
   };
 
-  const raw = await generateJsonWithSchema<any[]>("gemini-3-pro-preview", prompt, schema);
+  const raw = await generateJsonWithSchema<any[]>(model, prompt, schema);
+  
   return normalizePlannedSegments(raw);
 }
 
+/**
+ * 섹션별 이미지 생성
+ */
+export async function generateDetailSectionImage(args: {
+  info: ProductInfo;
+  seg: DetailImageSegment;
+  modelType: ModelType;
+  referenceImages?: string[];
+  overrideModel?: string;
+  imageSize?: string;
+  allowText?: boolean;
+}): Promise<string | null> {
+  const prompt = buildCoupangSectionImagePrompt(args.info, args.seg);
 
-// ✅ 유틸: sleep
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const url = await generateImage(
+    prompt,
+    args.modelType,
+    "9:16",
+    args.referenceImages,
+    {
+      allowText: args.allowText ?? true,
+      imageSize: args.imageSize ?? "2K",
+      modelOverride: args.overrideModel,
+    },
+  );
 
-// ✅ 유틸: timeout (AbortController 못쓰는 구조여도 최소한 UI 꼬리 지연을 끊음)
-async function withTimeout<T>(p: Promise<T>, ms: number) {
-  return new Promise<T>((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`timeout:${ms}`)), ms);
-    p.then((v) => {
-      clearTimeout(t);
-      resolve(v);
-    }).catch((e) => {
-      clearTimeout(t);
-      reject(e);
-    });
-  });
-}
-
-// ✅ 유틸: 1회 재시도 + backoff
-async function retryOnce<T>(fn: () => Promise<T>) {
-  try {
-    return await fn();
-  } catch (e) {
-    // 가벼운 백오프 후 1번 더
-    await sleep(800);
-    return await fn();
-  }
-}
-
-
-export async function generateDetailSectionImage(
-  info: ProductInfo,
-  seg: DetailImageSegment,
-  modelType: ModelType,
-  referenceImages?: string[],
-) {
-  const prompt = buildCoupangSectionImagePrompt(info, seg);
-
-  // ✅ API 키가 있는 경우 PRO 이미지 모델 강제
-  const proImageModel = "gemini-3-pro-image-preview";
-
-  // ✅ 타임아웃: 75초(원하면 60~90 조절)
-  const TIMEOUT_MS = 75_000;
-
-    const run = async () => {
-    const url = generateImage(prompt, ModelType.PAID, "9:16", referenceImages, {
-    allowText: true,
-    imageSize: "2K",
-    modelOverride: modelType === ModelType.PAID ? proImageModel : undefined,
-  });
   return url ?? null;
-}
-
-
-  // ✅ 1회 재시도 + timeout 적용
-  return await retryOnce(() => withTimeout(run(), TIMEOUT_MS));
 }

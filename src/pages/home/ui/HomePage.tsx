@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { DetailPlanner } from "@/widgets/detail-page-generator";
-import ThumbnailGenerator from "@/widgets/tumbnail-generator";
+import ThumbnailGenerator from "@/widgets/thumbnail-generator";
 import { Header, AppMenuKey, Footer } from "@/widgets/layout/";
 import { session, useSession } from "@/entities/session/model/sessionStore";
 import { useNavigate } from "react-router-dom";
 
 import { lsGet, lsSet } from "@/shared/lib/storage/storage";
-import { STORAGE_KEYS } from "@/shared/config/storageKyes";
+import { STORAGE_KEYS } from "@/shared/config/storageKeys";
 import { pushRecentPage } from "@/features/recent-pages/model/recentPages";
 
 function tabLabel(tab: AppMenuKey) {

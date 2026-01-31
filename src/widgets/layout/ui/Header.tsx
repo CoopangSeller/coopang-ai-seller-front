@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { RecentPagesMenu } from "@/features/recent-pages/ui/RecentPagesMenu";
-import { getRecentPages } from "@/features/recent-pages/model/recentPages";
+import { RecentPagesMenu, getRecentPages } from "@/features/recent-pages";
 import { clearDraftsAndUiCacheExceptAuth } from "@/shared/lib/storage/clearAppStorageExceptAuth";
 
 export type AppMenuKey = "detail" | "thumbnail";

@@ -1,5 +1,5 @@
 import React from "react";
-import SignupForm from "@/features/auth/sign-up/ui/SignUpForm";
+import { SignUpForm } from "@/features/auth/sign-up";
 
 const SignupPage: React.FC = () => {
   return (
@@ -11,7 +11,7 @@ const SignupPage: React.FC = () => {
         </p>
 
         <div className="mt-8">
-          <SignupForm />
+          <SignUpForm />
         </div>
       </div>
     </div>

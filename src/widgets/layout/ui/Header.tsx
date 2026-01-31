@@ -298,11 +298,7 @@ const Header: React.FC = () => {
               <div
                 key={g.key}
                 className="relative"
-                onMouseEnter={() => {
-                  cancelClose();
-                  setOpenGroup(g.key);
-                  setFocusIndex(0);
-                }}
+                onMouseEnter={() => openDropdown(g.key)}
                 onMouseLeave={() => scheduleClose()}
               >
                 <button

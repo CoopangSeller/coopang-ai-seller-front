@@ -7,9 +7,10 @@ import { useDraft } from "@/features/draft/model/useDraft";
 import { generateImage } from "@/shared/api/gemini/geminiService";
 import { isModelOverloadedError } from "@/shared/api/gemini/lib/isModelOverloadedError";
 import { planWithPolicy, generateAllSections, imageWithPolicy, isTimeoutError } from "./policy";
+import { STORAGE_KEYS } from "@/shared/config/storageKeys";
 
 /** draft 저장 키 */
-const DRAFT_KEY = "detail-planner:v2";
+const DRAFT_KEY = STORAGE_KEYS.DETAIL_PLANNER_DRAFT;
 
 /** 최종컷 우선순위 키 */
 const SHOT_KEYS: DetailShotKey[] = ["cutout", "lifestyle", "model"];

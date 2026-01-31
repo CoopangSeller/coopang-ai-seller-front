@@ -1,5 +1,6 @@
 // src/widgets/detail-page-generator/api/detailPlannerGemini.ts
-import { DetailImageSegment, PageLength, ProductInfo, ModelType } from "@/shared/types/types";
+import { ModelType } from "@/shared/types/geminiModel.ts/types";
+import { DetailImageSegment, PageLength, ProductInfo } from "../model/types"
 import { generateImage, generateJsonWithSchema, Type } from "@/shared/api/gemini/geminiService";
 
 function safeJoin(arr?: string[]) {
@@ -16,13 +17,6 @@ function normalizeUSP(features: string) {
   const raw = (features ?? "").trim();
   if (!raw) return "";
   return raw.length > 1200 ? raw.slice(0, 1200) : raw;
-}
-
-function pricingBlock(info: ProductInfo) {
-  const o = info.pricing?.originalPrice?.trim() ?? "";
-  const s = info.pricing?.salePrice?.trim() ?? "";
-  if (!o && !s) return "가격 정보: (미입력)";
-  return `가격 정보: 정상가(${o || "미입력"}), 할인가(${s || "미입력"})`;
 }
 
 function lengthLabel(len: PageLength) {
@@ -45,7 +39,6 @@ function buildCoupangPlanPrompt(info: ProductInfo) {
 [상품 정보]
 - 상품명: ${info.name}
 - 카테고리: ${info.category}
-- ${pricingBlock(info)}
 - 타겟: 성별(${safeJoin(info.targetGender)}), 연령(${safeJoin(info.targetAge)})
 - 목표 길이: ${lengthLabel(info.pageLength)}
 

@@ -1,4 +1,3 @@
-// src/shared/config/detailTheme.ts
 // Detail page theme tokens (Coupang-style: clean, readable, commercial)
 
 export const detailTheme = {

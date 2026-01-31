@@ -1,6 +1,6 @@
 // src/shared/api/gemini/geminiService.ts
 import { GoogleGenAI, Type } from "@google/genai";
-import { ModelType } from "@/shared/types/types";
+import { ModelType } from "@/shared/types/geminiModel.ts/types";
 
 export type ImageAspect = "9:16" | "1:1";
 

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { DetailShotKey, PageLength, ProductInfo } from "@/shared/types/types";
+import { DetailShotKey, PageLength, ProductInfo } from "../../model/types";
 
 type Props = {
   info: ProductInfo;

@@ -1,5 +1,3 @@
-// src/shared/types/types.ts
-
 export enum PageLength {
   AUTO = "auto",
   SHORT = "5",
@@ -7,17 +5,7 @@ export enum PageLength {
   LONG = "9",
 }
 
-export enum ModelType {
-  FREE = "gemini-2.5-flash-image",
-  PAID = "gemini-3-pro-image-preview",
-}
-
 export type DetailShotKey = "cutout" | "lifestyle" | "model";
-
-export interface Pricing {
-  originalPrice: string;
-  salePrice: string;
-}
 
 export interface ProductShotConfig {
   key: DetailShotKey;
@@ -83,7 +71,6 @@ export interface ProductInfo {
   pageLength: PageLength;
 
   referenceImages: string[]; // base64 dataUrl or url
-  pricing: Pricing;
 
   shots: Record<DetailShotKey, ProductShotConfig>;
 

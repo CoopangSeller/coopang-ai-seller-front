@@ -1,11 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  DetailImageSegment,
-  DetailShotKey,
-  ModelType,
-  PageLength,
-  ProductInfo,
-} from "@/shared/types/types";
+import { ModelType } from "@/shared/types/geminiModel.ts/types";
+import { DetailImageSegment, DetailShotKey, PageLength, ProductInfo,} from "../model/types"
 import { buildCutPrompt } from "../lib/cutPrompts";
 import { useZipExport } from "@/features/file/file-export";
 import { useDraft } from "@/features/draft/model/useDraft";

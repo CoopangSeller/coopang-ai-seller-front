@@ -6,16 +6,9 @@ import {
 } from "../model/recentPages";
 
 type Props = {
-  onSelect: (key: string) => void;
+  onSelect: (path: string) => void;
   onClose: () => void;
-
-  /** ✅ 최근 목록 변경(삭제/전체삭제 등) 시 Header가 뱃지 갱신할 수 있도록 */
   onChanged?: (items: RecentPage[]) => void;
-};
-
-const LABEL: Record<string, string> = {
-  detail: "상세페이지 제작",
-  thumbnail: "썸네일 제작",
 };
 
 export const RecentPagesMenu: React.FC<Props> = ({
@@ -25,19 +18,13 @@ export const RecentPagesMenu: React.FC<Props> = ({
 }) => {
   const [items, setItems] = useState<RecentPage[]>([]);
 
-  // 메뉴 열릴 때마다 최신 로드
   useEffect(() => {
     const loaded = getRecentPages();
     setItems(loaded);
     onChanged?.(loaded);
   }, [onChanged]);
 
-  const pretty = useMemo(() => {
-    return items.map((it) => ({
-      ...it,
-      label: it.label ?? LABEL[it.key] ?? it.key,
-    }));
-  }, [items]);
+  const pretty = useMemo(() => items, [items]);
 
   const handleClearAll = () => {
     clearRecentPages();
@@ -69,10 +56,10 @@ export const RecentPagesMenu: React.FC<Props> = ({
         <div className="space-y-2">
           {pretty.map((p) => (
             <button
-              key={p.key}
+              key={p.path}
               type="button"
               onClick={() => {
-                onSelect(p.key);
+                onSelect(p.path);
                 onClose();
               }}
               className="w-full text-left px-3 py-3 rounded-xl bg-white text-slate-800 hover:bg-slate-100 transition"

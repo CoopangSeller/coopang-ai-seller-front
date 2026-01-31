@@ -2,7 +2,9 @@ import { withTimeout, retryOnce, TimeoutError} from "@/shared/lib/async";
 import { runWithConcurrency } from "@/shared/lib/async/runWithConcurrency";
 import { isModelOverloadedError } from "@/shared/api/gemini/lib/isModelOverloadedError";
 import { planDetailPage, generateDetailSectionImage } from "../api/detailPlannerGemini";
-import type { DetailImageSegment, ModelType, ProductInfo } from "@/shared/types/types";
+import type { DetailImageSegment, ProductInfo } from "./types";
+import type { ModelType } from "@/shared/types/geminiModel.ts/types";
+import type React from "react";
 
 /** Timeout 에러 판별(문자열 비교 금지) */
 export const isTimeoutError = (e: unknown): e is TimeoutError =>

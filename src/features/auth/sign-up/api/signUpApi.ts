@@ -1,8 +1,8 @@
-import { http } from "@/shared/api/http";
+import { authHttp } from "@/entities/session/api/authHttp";
 import type { LoginResponse, SignUpRequest } from "@/shared/types/auth";
 
 export function signUpApi(body: SignUpRequest) {
-  return http<LoginResponse>("/auth/signup", {
+  return authHttp<LoginResponse>("/auth/signup", {
     method: "POST",
     body: JSON.stringify(body),
     retryOnAuthError: false,

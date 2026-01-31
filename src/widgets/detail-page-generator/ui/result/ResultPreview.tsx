@@ -4,7 +4,7 @@ import {
   ExportButtons,
   ExportProgressOverlay,
 } from "@/features/file/file-export";
-import { DetailImageSegment } from "@/shared/types/types";
+import { DetailImageSegment } from "../../model/types";
 
 type Props = {
   name: string;

@@ -1,5 +1,5 @@
 // widgets/detail-page-generator/lib/prompts.ts
-import { DetailShotKey } from "@/shared/types/types";
+import { DetailShotKey } from "../model/types";
 
 function safeLine(s: string, max = 400) {
   return (s ?? "").trim().replace(/\s+/g, " ").slice(0, max);

@@ -1,6 +1,7 @@
 // widgets/detail-page-generator/ui/steps/StepInput.tsx
 import React from "react";
-import { DetailShotKey, ModelType, ProductInfo } from "@/shared/types/types";
+import { DetailShotKey, ProductInfo } from "../../model/types";
+import { ModelType } from "@/shared/types";
 import Step1ProductCard from "./Step1ProductCard";
 import Step2CutStudioCard from "./Step2CutStudioCard";
 import Step3FinalComposeCard from "./Step3FinalComposeCard";

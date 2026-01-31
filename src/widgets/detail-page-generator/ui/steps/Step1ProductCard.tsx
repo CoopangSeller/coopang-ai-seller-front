@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ProductInfo, Pricing } from "@/shared/types/types";
+import { ProductInfo } from "../../model/types";
 
 type Props = {
   info: ProductInfo;

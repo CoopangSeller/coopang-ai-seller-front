@@ -1,6 +1,6 @@
 // 현재 사용 안함
 import React from "react";
-import { DetailImageSegment } from "@/shared/types/types";
+import { DetailImageSegment } from "../../model/types";
 
 type Props = {
   segments: DetailImageSegment[];

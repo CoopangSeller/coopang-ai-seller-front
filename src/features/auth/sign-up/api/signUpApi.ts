@@ -1,5 +1,5 @@
 import { authHttp } from "@/entities/session/api/authHttp";
-import type { LoginResponse, SignUpRequest } from "@/shared/types/auth";
+import type { LoginResponse, SignUpRequest } from "@/shared/types";
 
 export function signUpApi(body: SignUpRequest) {
   return authHttp<LoginResponse>("/auth/signup", {

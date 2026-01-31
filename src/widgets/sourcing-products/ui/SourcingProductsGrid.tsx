@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { calcDerived, SourcingProductRow } from "@/entities/sourcing-product";
 import { markDeleted, markEdited } from "@/features/sourcing-products/edit-row";
@@ -9,6 +9,19 @@ import {
   uiPercentToFeeRate,
 } from "@/shared/lib/format/percentFormat";
 import { COUPANG_CATEGORIES } from "@/shared/config/coupangCategories";
+
+const MAX_URL_LEN = 600;
+
+function clampText(s: string, maxLen: number) {
+  if (s.length <= maxLen) return s;
+  return s.slice(0, maxLen);
+}
+
+function ellipsisMiddle(s: string, head = 28, tail = 14) {
+  if (!s) return "";
+  if (s.length <= head + tail + 1) return s;
+  return `${s.slice(0, head)}…${s.slice(s.length - tail)}`;
+}
 
 function SlimButton(props: {
   children: React.ReactNode;
@@ -124,12 +137,41 @@ function ImageIcon({ url }: { url: string }) {
               (e.currentTarget as HTMLImageElement).style.display = "none";
             }}
           />
-          <div className="px-3 py-2 text-xs text-slate-500 break-all">
+          <div className="break-all px-3 py-2 text-xs text-slate-500">
             {url}
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+function EllipsisInput(props: {
+  value: string;
+  onChange: (next: string) => void;
+  placeholder?: string;
+  maxLen?: number;
+  className?: string;
+  dataRow?: string;
+  dataCol?: string;
+}) {
+  const { value, onChange, placeholder, maxLen = MAX_URL_LEN } = props;
+  const [focused, setFocused] = useState(false);
+
+  const display = focused ? value : ellipsisMiddle(value);
+
+  return (
+    <input
+      className={props.className}
+      value={display}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      onChange={(e) => onChange(clampText(e.target.value, maxLen))}
+      placeholder={placeholder}
+      maxLength={maxLen}
+      data-row={props.dataRow}
+      data-col={props.dataCol}
+    />
   );
 }
 
@@ -257,6 +299,18 @@ export function SourcingProductsGrid(props: {
     return true;
   }, [visibleIds, checkedIds]);
 
+  useEffect(() => {
+    if (!selectedId) return;
+    // 선택된 행을 자동으로 스크롤/포커싱(삭제 후 다음 행 자동 포커싱 포함)
+    requestAnimationFrame(() => {
+      const el = document.querySelector(
+        `[data-row="${selectedId}"][data-col="keyword"]`,
+      ) as HTMLInputElement | null;
+      el?.focus();
+      el?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    });
+  }, [selectedId]);
+
   function toggleCheck(id: string, next: boolean) {
     setCheckedIds((prev) => {
       const s = new Set(prev);
@@ -375,7 +429,7 @@ export function SourcingProductsGrid(props: {
     "border border-transparent focus:border-slate-200 focus:bg-white focus:ring-4 focus:ring-blue-500/10 " +
     "placeholder:text-slate-400 text-slate-900";
 
-  const ellipsisInput = `${inputBase} truncate`;
+  const ellipsisInput = `${inputBase} w-full`;
 
   return (
     <div className="p-4">
@@ -516,6 +570,8 @@ export function SourcingProductsGrid(props: {
                   <td className={tdBase}>
                     <input
                       className={`${inputBase} w-40`}
+                      data-row={r.id}
+                      data-col="keyword"
                       value={r.keyword}
                       onChange={(e) =>
                         updateCell(r.id, { keyword: e.target.value })
@@ -553,13 +609,14 @@ export function SourcingProductsGrid(props: {
                     <div className="flex items-center gap-2">
                       <UrlIcon url={r.url1688} />
                       <CellPopover title="1688 URL" value={r.url1688}>
-                        <input
+                        <EllipsisInput
                           className={`${ellipsisInput} w-40`}
                           value={r.url1688}
-                          onChange={(e) =>
-                            updateCell(r.id, { url1688: e.target.value })
+                          onChange={(next) =>
+                            updateCell(r.id, { url1688: next })
                           }
                           placeholder="https://..."
+                          maxLen={MAX_URL_LEN}
                         />
                       </CellPopover>
                     </div>
@@ -570,13 +627,14 @@ export function SourcingProductsGrid(props: {
                     <div className="flex items-center gap-2">
                       <ImageIcon url={r.imageUrl} />
                       <CellPopover title="이미지 URL" value={r.imageUrl}>
-                        <input
+                        <EllipsisInput
                           className={`${ellipsisInput} w-44`}
                           value={r.imageUrl}
-                          onChange={(e) =>
-                            updateCell(r.id, { imageUrl: e.target.value })
+                          onChange={(next) =>
+                            updateCell(r.id, { imageUrl: next })
                           }
                           placeholder="이미지 URL"
+                          maxLen={MAX_URL_LEN}
                         />
                       </CellPopover>
                     </div>

@@ -1,5 +1,5 @@
 // src/widgets/detail-page-generator/api/detailPlannerGemini.ts
-import { ModelType } from "@/shared/types/geminiModel.ts/types";
+import { ModelType } from "@/shared/types";
 import { DetailImageSegment, PageLength, ProductInfo } from "../model/types"
 import { generateImage, generateJsonWithSchema, Type } from "@/shared/api/gemini/geminiService";
 

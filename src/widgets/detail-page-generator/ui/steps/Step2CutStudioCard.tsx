@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { ModelType } from "@/shared/types/geminiModel.ts/types";
+import { ModelType } from "@/shared/types";
 import type { ProductInfo, DetailShotKey } from "../../model/types";
 import { ReferenceImageUpload } from "@/features/file/image-upload";
 

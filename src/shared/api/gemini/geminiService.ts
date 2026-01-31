@@ -1,6 +1,6 @@
 // src/shared/api/gemini/geminiService.ts
 import { GoogleGenAI, Type } from "@google/genai";
-import { ModelType } from "@/shared/types/geminiModel.ts/types";
+import { ModelType } from "@/shared/types";
 import { toastStore } from "@/shared/model/toastStore";
 import { MissingGeminiApiKeyError } from "@/shared/lib/async";
 

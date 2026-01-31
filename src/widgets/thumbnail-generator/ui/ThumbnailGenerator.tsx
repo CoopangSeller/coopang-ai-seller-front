@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { ReferenceImageUpload } from "@/features/file/image-upload";
-import { ModelType } from "@/shared/types/geminiModel.ts/types";
+import { ModelType } from "@/shared/types";
 import { generateImage } from "@/shared/api/gemini/geminiService";
 
 import { useDraft } from "@/features/draft/model/useDraft";

@@ -3,7 +3,7 @@ import { runWithConcurrency } from "@/shared/lib/async/runWithConcurrency";
 import { isModelOverloadedError } from "@/shared/api/gemini/lib/isModelOverloadedError";
 import { planDetailPage, generateDetailSectionImage } from "../api/detailPlannerGemini";
 import type { DetailImageSegment, ProductInfo } from "./types";
-import type { ModelType } from "@/shared/types/geminiModel.ts/types";
+import { ModelType } from "@/shared/types/geminiModel.ts/types";
 import type React from "react";
 
 /** Timeout 에러 판별(문자열 비교 금지) */
@@ -72,9 +72,7 @@ export async function imageWithPolicy(args: {
       referenceImages,
       imageSize: "2K",
       allowText: true,
-      overrideModel: modelType === (("PAID" as unknown) as ModelType) ? MODELS.IMAGE_PRIMARY : MODELS.IMAGE_PRIMARY,
-      // 위 라인은 프로젝트의 ModelType enum 값에 따라 아래처럼 바꾸는 게 정석:
-      // overrideModel: modelType === ModelType.PAID ? MODELS.IMAGE_PRIMARY : undefined,
+      overrideModel: modelType === ModelType.PAID ? MODELS.IMAGE_PRIMARY : undefined,
     });
 
   const fallbackRun = () =>
@@ -93,7 +91,7 @@ export async function imageWithPolicy(args: {
       () => withTimeout(() => primaryRun(), primaryTimeoutMs),
       {
         // timeout은 retry하지 말고 바로 fallback로 넘긴다
-        shouldRetry: (e) => !isTimeoutError(e) && !isModelOverloadedError(e),
+        shouldRetry: (e) => !isTimeoutError(e) && isModelOverloadedError(e),
       },
     );
   } catch (e) {

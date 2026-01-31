@@ -8,6 +8,8 @@ export function clearDraftsAndUiCacheExceptAuth() {
     STORAGE_KEYS.RECENT_PAGES,
   ];
 
-  for (const k of keysToRemove) localStorage.removeItem(k);
+  const legacyKeys = ["detail-planner:v2"]; // 과거 키도 제거
+  for (const k of [...keysToRemove, ...legacyKeys]) localStorage.removeItem(k);
+
   sessionStorage.clear();
 }

@@ -10,3 +10,13 @@ export class TimeoutError extends Error {
     this.ms = ms;
   }
 }
+
+/*
+* GEMINI API NULL 에러
+*/
+export class MissingGeminiApiKeyError extends Error {
+  constructor() {
+    super("Missing Gemini API key");
+    this.name = "MissingGeminiApiKeyError";
+  }
+}

@@ -1,6 +1,8 @@
 // src/shared/api/gemini/geminiService.ts
 import { GoogleGenAI, Type } from "@google/genai";
 import { ModelType } from "@/shared/types/geminiModel.ts/types";
+import { toastStore } from "@/shared/model/toastStore";
+import { MissingGeminiApiKeyError } from "@/shared/lib/async";
 
 export type ImageAspect = "9:16" | "1:1";
 
@@ -14,7 +16,38 @@ export type GenerateImageOptions = {
   modelOverride?: string; // ✅ 추가
 };
 
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
+
+const MISSING_KEY_TOAST_ONCE = "aiclub:missing-gemini-key-toast-once";
+
+function promptMissingGeminiKeyOnce() {
+  try {
+    if (sessionStorage.getItem(MISSING_KEY_TOAST_ONCE) === "1") return;
+    sessionStorage.setItem(MISSING_KEY_TOAST_ONCE, "1");
+  } catch {}
+
+  toastStore.push({
+    type: "error",
+    title: "Gemini API 키 필요",
+    message:
+      "Gemini API 키가 설정되어 있지 않아 생성 기능을 사용할 수 없습니다. " +
+      "환경변수 VITE_GEMINI_API_KEY를 설정하거나(권장), 키 선택/연동 화면에서 키를 등록해 주세요.",
+    durationMs: 6000,
+  });
+
+  (window as any).aistudio?.openSelectKey?.();
+}
+
+const getAI = () => {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
+
+  if (!apiKey) {
+    promptMissingGeminiKeyOnce();
+    throw new MissingGeminiApiKeyError();
+  }
+
+  return new GoogleGenAI({ apiKey });
+};
+
 
 function normalizeRefs(referenceImages?: string[]) {
   const out: string[] = [];

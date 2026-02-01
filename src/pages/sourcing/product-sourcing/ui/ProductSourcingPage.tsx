@@ -1,7 +1,9 @@
 import React from "react";
 import { QueryBar } from "@/features/sourcing-products/query-bar";
-import { SourcingProductsGrid } from "@/widgets/sourcing-products";
-import { useSourcingProducts } from "@/widgets/sourcing-products/model/useSourcingProducts";
+import {
+  SourcingProductsGrid,
+  useSourcingProducts,
+} from "@/widgets/sourcing-products";
 
 const ProductSourcingPage: React.FC = () => {
   const s = useSourcingProducts();

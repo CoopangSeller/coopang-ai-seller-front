@@ -46,6 +46,7 @@ const GROUPS: MenuGroup[] = [
       },
       { label: "썸네일 생성", to: ROUTES.PLANNING_THUMBNAIL },
       { label: "썸네일 예약 생성", to: ROUTES.PLANNING_THUMBNAIL_SCHEDULED },
+      { label: "태그 생성", to: ROUTES.PLANNING_TAG_GENERATOR },
     ],
   },
   {

@@ -81,13 +81,20 @@ function CellPopover(props: {
   title: string;
   value: string;
   children: React.ReactNode;
+  widthClassName?: string;
 }) {
   const { title, value } = props;
   if (!value) return <>{props.children}</>;
   return (
     <div className="relative group">
       {props.children}
-      <div className="pointer-events-none absolute left-0 top-9 z-30 hidden w-[420px] rounded-2xl border border-slate-200 bg-white p-3 text-xs shadow-xl group-hover:block">
+      <div
+        className={[
+          "pointer-events-none absolute left-0 top-9 z-30 hidden",
+          props.widthClassName ?? "w-[420px]",
+          "rounded-2xl border border-slate-200 bg-white p-3 text-xs shadow-xl group-hover:block",
+        ].join(" ")}
+      >
         <div className="font-extrabold text-slate-900">{title}</div>
         <div className="mt-2 break-all text-slate-700">{value}</div>
       </div>
@@ -286,6 +293,16 @@ export function SourcingProductsGrid(props: {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
 
+  const [isMdUp, setIsMdUp] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)"); // md
+    const onChange = () => setIsMdUp(mq.matches);
+    onChange();
+    mq.addEventListener?.("change", onChange);
+    return () => mq.removeEventListener?.("change", onChange);
+  }, []);
+
   const selected = useMemo(
     () => props.allRows.find((r) => r.id === selectedId) ?? null,
     [props.allRows, selectedId],
@@ -301,7 +318,6 @@ export function SourcingProductsGrid(props: {
 
   useEffect(() => {
     if (!selectedId) return;
-    // 선택된 행을 자동으로 스크롤/포커싱(삭제 후 다음 행 자동 포커싱 포함)
     requestAnimationFrame(() => {
       const el = document.querySelector(
         `[data-row="${selectedId}"][data-col="keyword"]`,
@@ -369,7 +385,6 @@ export function SourcingProductsGrid(props: {
       visibleIds.includes(id),
     );
 
-    // 삭제 대상: 체크 > 선택행
     const targets =
       checked.length > 0 ? checked : selected ? [selected.id] : [];
     if (targets.length === 0) return;
@@ -379,24 +394,20 @@ export function SourcingProductsGrid(props: {
 
     props.setAllRows(
       props.allRows
-        // 1) 로컬행(serverId 없음)은 즉시 제거
         .filter((r) => !(targets.includes(r.id) && !r.serverId))
-        // 2) 서버행(serverId 있음)은 delete 플래그
         .map((r) => {
           if (!targets.includes(r.id)) return r;
-          if (!r.serverId) return r; // 이미 filter에서 제거됨
+          if (!r.serverId) return r;
           return markDeleted(r);
         }),
     );
 
-    // 체크 상태 정리
     setCheckedIds((prev) => {
       const s = new Set(prev);
       targets.forEach((id) => s.delete(id));
       return s;
     });
 
-    // 포커스(선택) 이동
     setSelectedId(nextSelected);
   }
 
@@ -415,25 +426,54 @@ export function SourcingProductsGrid(props: {
     );
   }
 
-  // table styles (dense & modern)
+  // border-collapse 기준으로 테이블/셀 스타일 재정의 (겹침 방지 핵심)
   const thCls =
-    "sticky top-0 z-10 px-2 py-2 text-left text-[11px] font-extrabold tracking-wide " +
-    "text-slate-600 bg-slate-50 border-b border-slate-200 border-r border-slate-200 last:border-r-0 whitespace-nowrap";
+    "sticky top-0 z-20 px-2 py-2 text-left text-[11px] font-extrabold tracking-wide " +
+    "text-slate-600 bg-slate-50 whitespace-nowrap border border-slate-200";
 
   const tdBase =
-    "px-2 py-1 align-middle text-xs text-slate-900 " +
-    "border-b border-slate-200 border-r border-slate-200 last:border-r-0";
+    "px-2 py-1 align-middle text-xs text-slate-900 border border-slate-200";
+
+  const lossTint = "bg-rose-50/60";
 
   const inputBase =
     "h-8 w-full rounded-xl px-2 text-xs outline-none " +
     "border border-transparent focus:border-slate-200 focus:bg-white focus:ring-4 focus:ring-blue-500/10 " +
     "placeholder:text-slate-400 text-slate-900";
 
-  const ellipsisInput = `${inputBase} w-full`;
+  const ellipsisInput = `${inputBase}`;
+
+  // 고정 영역은 항상 불투명 배경(겹침 비침 방지)
+  const stickyCell = "sticky z-30 overflow-hidden bg-white";
+  const stickyHead = "sticky z-40 bg-slate-50 overflow-hidden";
+  // 고정 영역과 스크롤 영역 경계(시각적 분리)
+  const stickyRightDivider = "shadow-[8px_0_12px_-10px_rgba(0,0,0,0.35)]";
+
+  const stickyCls = isMdUp ? stickyCell : "";
+  const stickyHeadCls = isMdUp ? stickyHead : "";
+  const stickyStyle = (left: number) => (isMdUp ? { left } : undefined);
+
+  // Freeze widths (px): 반드시 colgroup과 일치
+  const W_CHECK = 40;
+  const W_STATUS = 64;
+  const W_NO = 48;
+  const W_KEYWORD = 224;
+  const W_VENDOR = 160;
+  const W_REF = 176;
+
+  // border-collapse에서 보더(1px) 누적 오차를 방지하기 위해,
+  // sticky left는 "폭 누적" + "보더 1px * 컬럼 개수"로 보정.
+  const B = 1;
+
+  const LEFT_CHECK = 0;
+  const LEFT_STATUS = W_CHECK + B * 1; // check border
+  const LEFT_NO = LEFT_STATUS + W_STATUS + B * 1;
+  const LEFT_KEYWORD = LEFT_NO + W_NO + B * 1;
+  const LEFT_VENDOR = LEFT_KEYWORD + W_KEYWORD + B * 1;
+  const LEFT_REF = LEFT_VENDOR + W_VENDOR + B * 1;
 
   return (
     <div className="p-4">
-      {/* Header / Actions */}
       <div className="flex flex-wrap items-end gap-3">
         <div className="mr-auto">
           <div className="text-sm font-extrabold text-slate-900">
@@ -446,13 +486,10 @@ export function SourcingProductsGrid(props: {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Excel */}
           <ExcelButtons
             rows={props.allRows}
             onImport={(rows) => props.setAllRows(rows)}
           />
-
-          {/* Grid Actions */}
           <SlimButton kind="ghost" onClick={addRow}>
             행추가
           </SlimButton>
@@ -469,13 +506,38 @@ export function SourcingProductsGrid(props: {
         </div>
       </div>
 
-      {/* Table */}
       <div className="mt-4 overflow-auto rounded-2xl border border-slate-200">
-        <table className="min-w-[1680px] w-full border-separate border-spacing-0">
+        <table className="min-w-[2000px] w-full table-fixed border-collapse">
+          <colgroup>
+            <col style={{ width: W_CHECK }} />
+            <col style={{ width: W_STATUS }} />
+            <col style={{ width: W_NO }} />
+            <col style={{ width: W_KEYWORD }} />
+            <col style={{ width: W_VENDOR }} />
+            <col style={{ width: W_REF }} />
+
+            <col style={{ width: 220 }} />
+            <col style={{ width: 240 }} />
+            <col style={{ width: 110 }} />
+            <col style={{ width: 130 }} />
+            <col style={{ width: 240 }} />
+            <col style={{ width: 120 }} />
+            <col style={{ width: 140 }} />
+            <col style={{ width: 120 }} />
+            <col style={{ width: 140 }} />
+            <col style={{ width: 110 }} />
+            <col style={{ width: 140 }} />
+            <col style={{ width: 120 }} />
+            <col style={{ width: 220 }} />
+            <col style={{ width: 260 }} />
+          </colgroup>
+
           <thead>
             <tr>
-              {/* check */}
-              <th className={`${thCls} w-10`}>
+              <th
+                className={`${thCls} ${stickyHeadCls}`}
+                style={{ left: LEFT_CHECK }}
+              >
                 <input
                   type="checkbox"
                   checked={allChecked}
@@ -485,12 +547,33 @@ export function SourcingProductsGrid(props: {
                 />
               </th>
 
+              <th
+                className={`${thCls} ${stickyHeadCls}`}
+                style={{ left: LEFT_STATUS }}
+              >
+                상태
+              </th>
+              <th
+                className={`${thCls} ${stickyHeadCls}`}
+                style={{ left: LEFT_NO }}
+              >
+                No
+              </th>
+              <th
+                className={`${thCls} ${stickyHeadCls}`}
+                style={{ left: LEFT_KEYWORD }}
+              >
+                키워드
+              </th>
+              <th
+                className={`${thCls} ${stickyHeadCls}`}
+                style={{ left: LEFT_VENDOR }}
+              >
+                도매처
+              </th>
+              <th className={`${thCls}`}>참고 상품</th>
+
               {[
-                "상태",
-                "No",
-                "키워드",
-                "도매처",
-                "참고 상품",
                 "1688 URL",
                 "이미지",
                 "원가(위안)",
@@ -518,7 +601,6 @@ export function SourcingProductsGrid(props: {
               const d = calcDerived(r);
               const isSelected = r.id === selectedId;
 
-              // min ad roas = sale / grossMargin
               const sale = r.salePriceKrw ?? 0;
               const gm = d.grossMargin ?? 0;
               const roas = gm > 0 && sale > 0 ? sale / gm : null;
@@ -531,8 +613,15 @@ export function SourcingProductsGrid(props: {
                   ? roasPct > recommended
                   : false;
 
-              const negativeTint = (d.grossMargin ?? 0) < 0 ? "bg-rose-50" : "";
-              const selectedTint = isSelected ? "bg-blue-50/60" : "";
+              const isLoss = d.grossMargin != null && d.grossMargin < 0;
+
+              // ring 제거 (sticky+table에서 외곽선 깨짐)
+              const negativeLine = "";
+              const negativeBorder = "";
+
+              // 선택도 ring 대신 배경만 (원하면 유지 가능하지만 ring은 추천 X)
+              const selectedBorder = isSelected ? "bg-blue-50/60" : "";
+
               const hover = !isSelected ? "hover:bg-slate-50" : "";
 
               return (
@@ -541,107 +630,136 @@ export function SourcingProductsGrid(props: {
                   onClick={() => setSelectedId(r.id)}
                   className={[
                     "cursor-pointer",
-                    negativeTint,
-                    selectedTint,
                     hover,
+                    negativeLine,
+                    negativeBorder,
+                    selectedBorder,
                     r.op === "delete" ? "opacity-60" : "",
                   ].join(" ")}
                 >
-                  {/* check */}
-                  <td className={`${tdBase} w-10 text-center`}>
-                    <input
-                      type="checkbox"
-                      checked={checkedIds.has(r.id)}
-                      onChange={(e) => toggleCheck(r.id, e.target.checked)}
-                      onClick={(e) => e.stopPropagation()}
-                      className="h-4 w-4 rounded border-slate-300"
-                    />
+                  <td
+                    className={`${tdBase} ${stickyCell} relative`}
+                    style={{ left: LEFT_CHECK }}
+                  >
+                    {isLoss && (
+                      <span className="absolute left-0 top-0 h-full w-[2px] bg-rose-300" />
+                    )}
+                    <div className="flex justify-center">
+                      <input
+                        type="checkbox"
+                        checked={checkedIds.has(r.id)}
+                        onChange={(e) => toggleCheck(r.id, e.target.checked)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-4 w-4 rounded border-slate-300"
+                      />
+                    </div>
                   </td>
 
-                  <td className={`${tdBase} w-16`}>
+                  <td
+                    className={`${tdBase} ${stickyCls}`}
+                    style={stickyStyle(LEFT_STATUS)}
+                  >
                     <OpBadge op={r.op} />
                   </td>
 
-                  {/* No */}
-                  <td className={`${tdBase} w-10`}>
+                  <td
+                    className={`${tdBase} ${stickyCls}`}
+                    style={stickyStyle(LEFT_NO)}
+                  >
                     <span className="tabular-nums">{r.no ?? ""}</span>
                   </td>
 
-                  <td className={tdBase}>
-                    <input
-                      className={`${inputBase} w-40`}
-                      data-row={r.id}
-                      data-col="keyword"
-                      value={r.keyword}
-                      onChange={(e) =>
-                        updateCell(r.id, { keyword: e.target.value })
-                      }
-                      placeholder="키워드"
-                    />
+                  <td
+                    className={`${tdBase} ${stickyCls}`}
+                    style={stickyStyle(LEFT_KEYWORD)}
+                  >
+                    <CellPopover title="키워드" value={r.keyword}>
+                      <EllipsisInput
+                        className={ellipsisInput}
+                        dataRow={r.id}
+                        dataCol="keyword"
+                        value={r.keyword}
+                        onChange={(next) => updateCell(r.id, { keyword: next })}
+                        placeholder="키워드"
+                        maxLen={80}
+                      />
+                    </CellPopover>
                   </td>
 
-                  <td className={tdBase}>
-                    <input
-                      className={`${inputBase} w-28`}
-                      value={r.vendor}
-                      onChange={(e) =>
-                        updateCell(r.id, {
-                          vendor: e.target.value,
-                        })
-                      }
-                      placeholder="도매처"
-                    />
+                  <td
+                    className={`${tdBase} ${stickyCls}`}
+                    style={stickyStyle(LEFT_VENDOR)}
+                  >
+                    <CellPopover title="도매처" value={r.vendor}>
+                      <EllipsisInput
+                        className={ellipsisInput}
+                        value={r.vendor}
+                        onChange={(next) => updateCell(r.id, { vendor: next })}
+                        placeholder="도매처"
+                        maxLen={60}
+                      />
+                    </CellPopover>
                   </td>
 
-                  <td className={tdBase}>
-                    <input
-                      className={`${inputBase} w-28`}
-                      value={r.refProduct}
-                      onChange={(e) =>
-                        updateCell(r.id, { refProduct: e.target.value })
-                      }
-                      placeholder="도매팩/1688"
-                    />
+                  <td className={`${tdBase}`} style={{ left: LEFT_REF }}>
+                    <CellPopover title="참고 상품" value={r.refProduct}>
+                      <EllipsisInput
+                        className={ellipsisInput}
+                        value={r.refProduct}
+                        onChange={(next) =>
+                          updateCell(r.id, { refProduct: next })
+                        }
+                        placeholder="참고 상품"
+                        maxLen={120}
+                      />
+                    </CellPopover>
                   </td>
 
-                  {/* URL */}
-                  <td className={tdBase}>
-                    <div className="flex items-center gap-2">
+                  <td className={`${tdBase} ${isLoss ? lossTint : ""}`}>
+                    <div className="flex items-center gap-2 min-w-0">
                       <UrlIcon url={r.url1688} />
-                      <CellPopover title="1688 URL" value={r.url1688}>
-                        <EllipsisInput
-                          className={`${ellipsisInput} w-40`}
-                          value={r.url1688}
-                          onChange={(next) =>
-                            updateCell(r.id, { url1688: next })
-                          }
-                          placeholder="https://..."
-                          maxLen={MAX_URL_LEN}
-                        />
-                      </CellPopover>
+                      <div className="min-w-0 flex-1">
+                        <CellPopover title="1688 URL" value={r.url1688}>
+                          <EllipsisInput
+                            className={ellipsisInput}
+                            value={r.url1688}
+                            onChange={(next) =>
+                              updateCell(r.id, { url1688: next })
+                            }
+                            placeholder="https://..."
+                            maxLen={MAX_URL_LEN}
+                          />
+                        </CellPopover>
+                      </div>
                     </div>
                   </td>
 
-                  {/* Image */}
-                  <td className={tdBase}>
-                    <div className="flex items-center gap-2">
+                  <td className={`${tdBase} ${isLoss ? lossTint : ""}`}>
+                    <div className="flex items-center gap-2 min-w-0">
                       <ImageIcon url={r.imageUrl} />
-                      <CellPopover title="이미지 URL" value={r.imageUrl}>
-                        <EllipsisInput
-                          className={`${ellipsisInput} w-44`}
+                      <div className="min-w-0 flex-1">
+                        <CellPopover
+                          title="이미지 URL"
                           value={r.imageUrl}
-                          onChange={(next) =>
-                            updateCell(r.id, { imageUrl: next })
-                          }
-                          placeholder="이미지 URL"
-                          maxLen={MAX_URL_LEN}
-                        />
-                      </CellPopover>
+                          widthClassName="w-[520px]"
+                        >
+                          <EllipsisInput
+                            className={ellipsisInput}
+                            value={r.imageUrl}
+                            onChange={(next) =>
+                              updateCell(r.id, { imageUrl: next })
+                            }
+                            placeholder="이미지 URL"
+                            maxLen={MAX_URL_LEN}
+                          />
+                        </CellPopover>
+                      </div>
                     </div>
                   </td>
 
-                  {/* cost cny */}
-                  <td className={`${tdBase} text-right w-24`}>
+                  <td
+                    className={`${tdBase} ${isLoss ? lossTint : ""} text-right`}
+                  >
                     <MoneyInput
                       prefix="¥"
                       value={r.costCny}
@@ -650,8 +768,9 @@ export function SourcingProductsGrid(props: {
                     />
                   </td>
 
-                  {/* cost krw */}
-                  <td className={`${tdBase} text-right w-28`}>
+                  <td
+                    className={`${tdBase} ${isLoss ? lossTint : ""} text-right`}
+                  >
                     <MoneyInput
                       prefix="₩"
                       value={r.costKrw}
@@ -660,8 +779,7 @@ export function SourcingProductsGrid(props: {
                     />
                   </td>
 
-                  {/* category */}
-                  <td className={`${tdBase} w-44`}>
+                  <td className={`${tdBase} ${isLoss ? lossTint : ""}`}>
                     <CategorySelect
                       value={r.coupangCategory ?? ""}
                       onSelect={(name, feePercent) => {
@@ -675,8 +793,9 @@ export function SourcingProductsGrid(props: {
                     />
                   </td>
 
-                  {/* shipping */}
-                  <td className={`${tdBase} text-right w-24`}>
+                  <td
+                    className={`${tdBase} ${isLoss ? lossTint : ""} text-right`}
+                  >
                     <MoneyInput
                       prefix="₩"
                       value={r.shippingKrw}
@@ -685,8 +804,9 @@ export function SourcingProductsGrid(props: {
                     />
                   </td>
 
-                  {/* sale */}
-                  <td className={`${tdBase} text-right w-28`}>
+                  <td
+                    className={`${tdBase} ${isLoss ? lossTint : ""} text-right`}
+                  >
                     <MoneyInput
                       prefix="₩"
                       value={r.salePriceKrw}
@@ -695,26 +815,30 @@ export function SourcingProductsGrid(props: {
                     />
                   </td>
 
-                  {/* fee percent */}
-                  <td className={`${tdBase} text-right w-24`}>
+                  <td
+                    className={`${tdBase} ${isLoss ? lossTint : ""} text-right`}
+                  >
                     <FeePercentInput
                       feeRate={r.feeRate}
                       onChange={(v) => updateCell(r.id, { feeRate: v })}
                     />
                   </td>
 
-                  {/* derived */}
-                  <td className={`${tdBase} text-right tabular-nums`}>
+                  <td
+                    className={`${tdBase} ${isLoss ? lossTint : ""} text-right tabular-nums`}
+                  >
                     {Math.round(d.feeAmount ?? 0).toLocaleString()}
                   </td>
 
-                  <td className={`${tdBase} text-right tabular-nums`}>
+                  <td
+                    className={`${tdBase} ${isLoss ? lossTint : ""} text-right tabular-nums`}
+                  >
                     {Math.round(d.vat ?? 0).toLocaleString()}
                   </td>
 
                   <td
                     className={[
-                      tdBase,
+                      `${tdBase} ${isLoss ? lossTint : ""}`,
                       "text-right tabular-nums",
                       (d.grossMargin ?? 0) < 0 ? "text-rose-700 font-bold" : "",
                     ].join(" ")}
@@ -722,12 +846,15 @@ export function SourcingProductsGrid(props: {
                     {Math.round(d.grossMargin ?? 0).toLocaleString()}
                   </td>
 
-                  <td className={`${tdBase} text-right tabular-nums`}>
+                  <td
+                    className={`${tdBase} ${isLoss ? lossTint : ""} text-right tabular-nums`}
+                  >
                     {((d.grossMarginRate ?? 0) * 100).toFixed(0)}%
                   </td>
 
-                  {/* min ad roas */}
-                  <td className={`${tdBase} text-right w-28`}>
+                  <td
+                    className={`${tdBase} ${isLoss ? lossTint : ""} text-right`}
+                  >
                     <div className="flex flex-col items-end leading-tight">
                       <div
                         className={
@@ -750,15 +877,15 @@ export function SourcingProductsGrid(props: {
                     </div>
                   </td>
 
-                  {/* productName */}
                   <td className={tdBase}>
-                    <input
-                      className={`${inputBase} w-44`}
+                    <EllipsisInput
+                      className={ellipsisInput}
                       value={r.productName}
-                      onChange={(e) =>
-                        updateCell(r.id, { productName: e.target.value })
+                      onChange={(next) =>
+                        updateCell(r.id, { productName: next })
                       }
                       placeholder="상품명"
+                      maxLen={160}
                     />
                   </td>
                 </tr>
@@ -768,7 +895,6 @@ export function SourcingProductsGrid(props: {
         </table>
       </div>
 
-      {/* Bottom right save */}
       <div className="mt-4 flex justify-end">
         <SlimButton kind="primary" onClick={props.onSave}>
           저장

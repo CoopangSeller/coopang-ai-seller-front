@@ -28,12 +28,14 @@ export function DeferredCommitInput(props: {
   className?: string;
   dataRow?: string;
   dataCol?: string;
+  onFocus?: () => void; // ✅ 추가
 }) {
   const { value, onCommit, placeholder, maxLen = MAX_URL_LEN } = props;
 
   const composingRef = useRef(false);
   const lastCommittedRef = useRef(value);
 
+  // 외부값 변경 시 DOM 입력을 새로 만들어 동기화 (uncontrolled 유지)
   const key = `${props.dataRow ?? ""}:${props.dataCol ?? ""}:${value}`;
 
   const clampInPlace = (el: HTMLInputElement) => {
@@ -60,6 +62,7 @@ export function DeferredCommitInput(props: {
       data-col={props.dataCol}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
+      onFocus={props.onFocus} // ✅ 선택 이동 트리거
       onCompositionStart={() => {
         composingRef.current = true;
       }}
@@ -67,6 +70,7 @@ export function DeferredCommitInput(props: {
         composingRef.current = false;
       }}
       onInput={(e) => {
+        // 입력 중 길이 제한만 수행 (state 갱신 금지)
         clampInPlace(e.currentTarget);
       }}
       onKeyDown={(e) => {
@@ -96,6 +100,7 @@ export function MoneyInput(props: {
   onChange: (v?: number) => void;
   placeholder?: string;
   prefix?: "₩" | "¥";
+  onFocus?: () => void; // ✅ 추가
 }) {
   const { value, onChange, placeholder, prefix } = props;
   const [focused, setFocused] = useState(false);
@@ -120,7 +125,10 @@ export function MoneyInput(props: {
       value={display}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
-      onFocus={() => setFocused(true)}
+      onFocus={() => {
+        props.onFocus?.();
+        setFocused(true);
+      }}
       onBlur={() => setFocused(false)}
       onChange={(e) => onChange(parseNumber(e.target.value))}
       placeholder={placeholder}
@@ -132,6 +140,7 @@ export function MoneyInput(props: {
 export function FeePercentInput(props: {
   feeRate?: number; // 내부 0.108
   onChange: (v?: number) => void;
+  onFocus?: () => void; // ✅ 추가
 }) {
   const [focused, setFocused] = useState(false);
 
@@ -154,7 +163,10 @@ export function FeePercentInput(props: {
           "text-slate-900 placeholder:text-slate-400",
         ].join(" ")}
         value={display}
-        onFocus={() => setFocused(true)}
+        onFocus={() => {
+          props.onFocus?.();
+          setFocused(true);
+        }}
         onBlur={() => setFocused(false)}
         onChange={(e) => props.onChange(uiPercentToFeeRate(e.target.value))}
         placeholder="10.8"
@@ -170,6 +182,7 @@ export function FeePercentInput(props: {
 export function CategorySelect(props: {
   value: string;
   onSelect: (name: string, feePercent?: number) => void;
+  onFocus?: () => void; // ✅ 추가
 }) {
   return (
     <select
@@ -181,6 +194,7 @@ export function CategorySelect(props: {
       value={props.value}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
+      onFocus={props.onFocus}
       onChange={(e) => {
         const name = e.target.value;
         const found = COUPANG_CATEGORIES.find((c) => c.name === name);

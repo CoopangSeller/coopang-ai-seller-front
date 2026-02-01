@@ -23,7 +23,7 @@ const cards: Card[] = [
     title: "기획",
     desc: "전환 중심 상세/썸네일 생성 플로우",
     to: ROUTES.PLANNING_DETAIL_PAGE,
-    bullets: ["상세페이지 생성/예약", "썸네일 생성/예약"],
+    bullets: ["상세페이지 생성/예약", "썸네일 생성/예약", "태그 생성"],
     accent: "violet",
   },
   {

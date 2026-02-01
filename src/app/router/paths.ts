@@ -12,6 +12,7 @@ export const ROUTES = {
   PLANNING_DETAIL_PAGE_SCHEDULED: "/planning/detail-page-scheduled",
   PLANNING_THUMBNAIL: "/planning/thumbnail",
   PLANNING_THUMBNAIL_SCHEDULED: "/planning/thumbnail-scheduled",
+  PLANNING_TAG_GENERATOR: "/planning/tag-generator",
 
   // 상품
   PRODUCTS_MANAGE: "/products/manage",
@@ -32,6 +33,7 @@ export const ROUTE_LABEL: Record<string, string> = {
   [ROUTES.PLANNING_DETAIL_PAGE_SCHEDULED]: "상세페이지 예약 생성",
   [ROUTES.PLANNING_THUMBNAIL]: "썸네일 생성",
   [ROUTES.PLANNING_THUMBNAIL_SCHEDULED]: "썸네일 예약 생성",
+  [ROUTES.PLANNING_TAG_GENERATOR]: "태그 생성",
 
   [ROUTES.PRODUCTS_MANAGE]: "등록 상품 관리",
   [ROUTES.PRODUCTS_DETAIL_PAGES]: "상세페이지 조회",

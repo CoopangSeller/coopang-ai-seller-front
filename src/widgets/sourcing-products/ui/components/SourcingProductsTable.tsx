@@ -16,8 +16,10 @@ export function SourcingProductsTable(props: {
 
   checkedIds: Set<string>;
   toggleCheck: (id: string, next: boolean) => void;
+
   allChecked: boolean;
   toggleCheckAll: (next: boolean) => void;
+
   isMdUp: boolean;
 
   updateCell: (id: string, patch: Partial<SourcingProductRow>) => void;
@@ -27,9 +29,9 @@ export function SourcingProductsTable(props: {
     selectedId,
     setSelectedId,
     checkedIds,
+    toggleCheck,
     allChecked,
     toggleCheckAll,
-    toggleCheck,
     isMdUp,
     updateCell,
   } = props;
@@ -70,12 +72,15 @@ export function SourcingProductsTable(props: {
   const LEFT_KEYWORD = LEFT_NO + W_NO + B * 1;
   const LEFT_VENDOR = LEFT_KEYWORD + W_KEYWORD + B * 1;
 
-  // ✅ 선택 강조(은은한 파란색)
+  // ✅ 선택 강조:
+  // - row(비-sticky)는 은은하게(투명도 OK)
+  // - sticky는 절대 투명도 금지(겹침 방지) → 불투명 bg-blue-50
   const selectedRowBg = "bg-blue-50/60";
-  // ✅ sticky는 항상 불투명. 선택 시에도 불투명한 파란 배경으로.
-  const stickyBg = (isSelected: boolean) =>
-    isSelected ? selectedRowBg : "bg-white";
+  const selectedStickyBg = "bg-blue-50"; // ✅ opaque
   const headBg = "bg-slate-50";
+
+  const stickyBg = (isSelected: boolean) =>
+    isSelected ? selectedStickyBg : "bg-white";
 
   return (
     <div className="mt-4 overflow-auto rounded-2xl border border-slate-200">
@@ -106,6 +111,7 @@ export function SourcingProductsTable(props: {
 
         <thead>
           <tr>
+            {/* CHECK */}
             <th
               className={`${thCls} ${stickyHeadCls} ${headBg}`}
               style={{ left: LEFT_CHECK }}
@@ -195,10 +201,13 @@ export function SourcingProductsTable(props: {
             const hover = !isSelected ? "hover:bg-slate-50" : "";
             const rowBg = isSelected ? selectedRowBg : "";
 
+            const focusRow = () => setSelectedId(r.id);
+
             return (
               <tr
                 key={r.id}
                 onMouseDown={(e) => {
+                  // 입력 요소 클릭은 행 선택과 분리(포커스 안정) - 대신 onFocus에서 선택 이동
                   const t = e.target as HTMLElement;
                   if (t.closest("input, textarea, select, button")) return;
                   setSelectedId(r.id);
@@ -229,6 +238,7 @@ export function SourcingProductsTable(props: {
                       checked={checkedIds.has(r.id)}
                       onChange={(e) => toggleCheck(r.id, e.target.checked)}
                       onClick={(e) => e.stopPropagation()}
+                      onFocus={focusRow}
                       className="h-4 w-4 rounded border-slate-300"
                     />
                   </div>
@@ -268,13 +278,14 @@ export function SourcingProductsTable(props: {
                       dataCol="keyword"
                       value={r.keyword}
                       onCommit={(next) => updateCell(r.id, { keyword: next })}
+                      onFocus={focusRow}
                       placeholder="키워드"
                       maxLen={80}
                     />
                   </CellPopover>
                 </td>
 
-                {/* VENDOR (sticky boundary) */}
+                {/* VENDOR */}
                 <td
                   className={[
                     tdBase,
@@ -291,6 +302,7 @@ export function SourcingProductsTable(props: {
                       dataCol="vendor"
                       value={r.vendor}
                       onCommit={(next) => updateCell(r.id, { vendor: next })}
+                      onFocus={focusRow}
                       placeholder="도매처"
                       maxLen={60}
                     />
@@ -308,6 +320,7 @@ export function SourcingProductsTable(props: {
                       onCommit={(next) =>
                         updateCell(r.id, { refProduct: next })
                       }
+                      onFocus={focusRow}
                       placeholder="참고 상품"
                       maxLen={120}
                     />
@@ -328,6 +341,7 @@ export function SourcingProductsTable(props: {
                           onCommit={(next) =>
                             updateCell(r.id, { url1688: next })
                           }
+                          onFocus={focusRow}
                           placeholder="https://..."
                           maxLen={MAX_URL_LEN}
                         />
@@ -354,6 +368,7 @@ export function SourcingProductsTable(props: {
                           onCommit={(next) =>
                             updateCell(r.id, { imageUrl: next })
                           }
+                          onFocus={focusRow}
                           placeholder="이미지 URL"
                           maxLen={MAX_URL_LEN}
                         />
@@ -370,6 +385,7 @@ export function SourcingProductsTable(props: {
                     prefix="¥"
                     value={r.costCny}
                     onChange={(v) => updateCell(r.id, { costCny: v })}
+                    onFocus={focusRow}
                     placeholder="0"
                   />
                 </td>
@@ -382,6 +398,7 @@ export function SourcingProductsTable(props: {
                     prefix="₩"
                     value={r.costKrw}
                     onChange={(v) => updateCell(r.id, { costKrw: v })}
+                    onFocus={focusRow}
                     placeholder="0"
                   />
                 </td>
@@ -398,6 +415,7 @@ export function SourcingProductsTable(props: {
                           : {}),
                       });
                     }}
+                    onFocus={focusRow}
                   />
                 </td>
 
@@ -409,6 +427,7 @@ export function SourcingProductsTable(props: {
                     prefix="₩"
                     value={r.shippingKrw}
                     onChange={(v) => updateCell(r.id, { shippingKrw: v })}
+                    onFocus={focusRow}
                     placeholder="3000"
                   />
                 </td>
@@ -421,6 +440,7 @@ export function SourcingProductsTable(props: {
                     prefix="₩"
                     value={r.salePriceKrw}
                     onChange={(v) => updateCell(r.id, { salePriceKrw: v })}
+                    onFocus={focusRow}
                     placeholder="0"
                   />
                 </td>
@@ -432,6 +452,7 @@ export function SourcingProductsTable(props: {
                   <FeePercentInput
                     feeRate={r.feeRate}
                     onChange={(v) => updateCell(r.id, { feeRate: v })}
+                    onFocus={focusRow}
                   />
                 </td>
 
@@ -511,6 +532,7 @@ export function SourcingProductsTable(props: {
                     dataCol="productName"
                     value={r.productName}
                     onCommit={(next) => updateCell(r.id, { productName: next })}
+                    onFocus={focusRow}
                     placeholder="상품명"
                     maxLen={160}
                   />

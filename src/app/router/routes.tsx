@@ -19,6 +19,7 @@ import DetailPageGeneratorPage from "@/pages/planning/detail-page-generator/ui/D
 import DetailPageScheduledPage from "@/pages/planning/detail-page-scheduled/ui/DetailPageScheduledPage";
 import ThumbnailGeneratorPage from "@/pages/planning/thumbnail-generator/ui/ThumbnailGeneratorPage";
 import ThumbnailScheduledPage from "@/pages/planning/thumbnail-scheduled/ui/ThumbnailScheduledPage";
+import TagGeneratorPage from "@/pages/planning/tag-generator/ui/TagGeneratorPage";
 
 import RegisteredProductsPage from "@/pages/products/registered-products/ui/RegisteredProductsPage";
 import DetailPageGalleryPage from "@/pages/products/detail-page-gallery/ui/DetailPageGalleryPage";
@@ -43,6 +44,10 @@ const protectedChildren = [
   {
     path: ROUTES.PLANNING_THUMBNAIL_SCHEDULED,
     element: <ThumbnailScheduledPage />,
+  },
+  {
+    path: ROUTES.PLANNING_TAG_GENERATOR,
+    element: <TagGeneratorPage />,
   },
 
   // 상품

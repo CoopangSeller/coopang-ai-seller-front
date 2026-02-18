@@ -7,35 +7,35 @@ React + Vite 기반 프론트엔드 프로젝트이며 **FSD(Feature-Sliced Desi
 
 ---
 
-# 📚 섹터별 가이드
+# 📑 목차
+
+1. [프로젝트 초기 세팅 및 실행 방법](#1️⃣-프로젝트-초기-세팅-및-실행-방법)
+2. [페이지별 가이드](#2️⃣-페이지별-가이드-추후-작성)
+3. [Vercel 배포 가이드](#3️⃣-vercel-배포-가이드)
+4. [프로젝트 구조](#🗂-프로젝트-구조)
+5. [주요 계산 로직](#🧮-주요-계산-로직)
+6. [기술 스택](#🧑‍💻-기술-스택)
+7. [프로젝트 목적](#📌-프로젝트-목적)
 
 ---
 
-## ▶ 1️⃣ 프로젝트 초기 세팅 및 실행 방법
+# ▶ 1️⃣ 프로젝트 초기 세팅 및 실행 방법
 
 <details open>
 <summary><b>STEP 1. 필수 프로그램 설치</b></summary>
 
 ### ✔ Git 설치
 
-설치 후 확인
-
 ```bash
 git --version
 ```
 
----
-
 ### ✔ Node.js 설치 (권장 v18 이상)
-
-설치 확인
 
 ```bash
 node -v
 npm -v
 ```
-
----
 
 ### ✔ VSCode 설치
 
@@ -57,8 +57,6 @@ git clone <YOUR_REPO_URL>
 cd <PROJECT_FOLDER>
 ```
 
-👉 `<YOUR_REPO_URL>` → 깃허브 저장소 주소로 변경
-
 </details>
 
 ---
@@ -66,31 +64,26 @@ cd <PROJECT_FOLDER>
 <details>
 <summary><b>STEP 3. 환경설정 파일 (.env.local)</b></summary>
 
-프로젝트 최상단(package.json 위치)에 `.env.local` 생성
-
 ```env
 VITE_GEMINI_API_KEY=YOUR_GEMINI_API_KEY_HERE
 VITE_API_BASE_URL=http://localhost:8080
 VITE_API_ENABLED=true
 ```
 
-### 🔐 보안 주의
-
-- API 키 GitHub 업로드 금지
-- `.env.local`은 개인 파일
+🔐 API 키 GitHub 업로드 금지
 
 </details>
 
 ---
 
 <details>
-<summary><b>STEP 4. 의존성 설치 (반드시 먼저)</b></summary>
+<summary><b>STEP 4. 의존성 설치</b></summary>
 
 ```bash
 npm install
 ```
 
-👉 무조건 실행 후 `npm run dev`
+👉 반드시 실행 후 `npm run dev`
 
 </details>
 
@@ -104,10 +97,7 @@ npm run dev
 ```
 
 브라우저 접속
-
-```
-http://localhost:3000
-```
+👉 http://localhost:3000
 
 </details>
 
@@ -116,24 +106,15 @@ http://localhost:3000
 <details>
 <summary><b>STEP 6. 자주 발생하는 문제</b></summary>
 
-### ✔ .env.local 수정했는데 반영 안됨
+.env.local 수정 후 반영 안되면
 
 ```bash
 Ctrl + C
 npm run dev
 ```
 
----
-
-### ✔ API 에러 발생
-
-👉 백엔드 실행 확인
-
-👉 화면만 실행하려면
-
-```env
-VITE_API_ENABLED=false
-```
+API 에러 발생 시
+👉 백엔드 서버 실행 확인
 
 </details>
 
@@ -145,8 +126,6 @@ VITE_API_ENABLED=false
 <summary><b>페이지 설명 템플릿</b></summary>
 
 각 페이지는 아래 형식으로 작성 예정
-
----
 
 ### ✔ 페이지 이름
 
@@ -168,16 +147,12 @@ VITE_API_ENABLED=false
 
 - 자주 묻는 질문
 
----
-
-### 예정 페이지
+예정 페이지
 
 - 상품 소싱 페이지
 - 중국 사입 원가 계산 페이지
-- 상세페이지 기획/생성 페이지
-- 썸네일 기획/생성 페이지
-
-👉 실제 화면 스크린샷 기준으로 추가 예정
+- 상세페이지 생성
+- 썸네일 생성
 
 </details>
 
@@ -193,8 +168,6 @@ npm run build
 npm run preview
 ```
 
-👉 오류 없이 실행되면 배포 가능
-
 </details>
 
 ---
@@ -204,16 +177,14 @@ npm run preview
 
 1. Vercel 로그인
 2. GitHub 저장소 Import
-3. Deploy 클릭
+3. Deploy
 
 </details>
 
 ---
 
 <details>
-<summary><b>STEP 3. Environment Variables 설정</b></summary>
-
-Vercel → Project Settings → Environment Variables
+<summary><b>STEP 3. Environment Variables</b></summary>
 
 추가 항목
 
@@ -223,23 +194,14 @@ VITE_API_BASE_URL
 VITE_API_ENABLED
 ```
 
-예시
-
-```
-VITE_API_BASE_URL=https://your-backend-domain.com
-```
-
 </details>
 
 ---
 
 <details>
-<summary><b>STEP 4. Not Found 오류 해결 (SPA 라우팅)</b></summary>
+<summary><b>STEP 4. Not Found 오류 해결</b></summary>
 
-Vercel에서 직접 URL 접근 시 404 뜨면
-`vercel.json` 필요
-
-예시:
+`vercel.json`
 
 ```json
 {
@@ -247,7 +209,7 @@ Vercel에서 직접 URL 접근 시 404 뜨면
 }
 ```
 
-👉 `/planning/thumbnail` 같은 라우팅 문제 해결됨
+👉 `/planning/thumbnail` 같은 라우팅 문제 해결
 
 </details>
 
@@ -257,14 +219,14 @@ Vercel에서 직접 URL 접근 시 404 뜨면
 
 ```
 src/
- ├─ pages/        → 페이지 화면
- ├─ widgets/      → 큰 UI 블록
- ├─ features/     → 기능 모듈
- ├─ entities/     → 데이터 모델
- ├─ shared/       → 공통 유틸
+ ├─ pages/
+ ├─ widgets/
+ ├─ features/
+ ├─ entities/
+ ├─ shared/
 ```
 
-👉 AI Sync Club은 **FSD 구조** 기반
+👉 **FSD 구조 기반**
 
 ---
 

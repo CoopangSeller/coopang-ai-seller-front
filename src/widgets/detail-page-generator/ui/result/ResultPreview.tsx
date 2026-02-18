@@ -36,6 +36,16 @@ function getNextUrl(seg: DetailImageSegment) {
   return seg.future?.find((f) => !!f.imageUrl)?.imageUrl;
 }
 
+function buildNextEdits(
+  seg: DetailImageSegment,
+  patch: Partial<NonNullable<DetailImageSegment["edits"]>>,
+) {
+  return {
+    ...(seg.edits ?? {}),
+    ...patch,
+  };
+}
+
 const ResultPreview: React.FC<Props> = ({
   name,
   segments,
@@ -93,6 +103,12 @@ const ResultPreview: React.FC<Props> = ({
 
           const prevUrl = seg.imageUrl ? getPrevUrl(seg) : undefined;
           const nextUrl = seg.imageUrl ? getNextUrl(seg) : undefined;
+
+          const headerValue = seg.edits?.headerText ?? seg.title ?? "";
+          const subcopyValue =
+            seg.edits?.subcopyText ?? (seg.logicalSections ?? []).join("\n");
+          const visualValue =
+            seg.edits?.visualRequest ?? seg.promptOverride ?? "";
 
           return (
             <div
@@ -244,10 +260,10 @@ const ResultPreview: React.FC<Props> = ({
                   </div>
                 </div>
 
-                {/* keyMessage -> title 같이 변경(너의 현재 구현 유지) */}
+                {/* ✅ 요구사항: 입력 3개 분리 (edits만 사용) */}
                 <div className="space-y-2">
                   <label className="text-xs font-black text-slate-600">
-                    이 섹션 테마 (keyMessage)
+                    헤더 수정(큰 글씨)
                   </label>
                   <input
                     type="text"
@@ -257,34 +273,62 @@ const ResultPreview: React.FC<Props> = ({
                       focus:bg-white focus:ring-2 focus:ring-blue-500
                       outline-none text-sm text-slate-800
                     "
-                    value={seg.keyMessage}
+                    value={headerValue}
                     onChange={(e) => {
-                      updateSegment(idx, "keyMessage", e.target.value);
-                      updateSegment(idx, "title", e.target.value);
+                      const nextEdits = buildNextEdits(seg, {
+                        headerText: e.target.value,
+                      });
+                      updateSegment(idx, "edits", JSON.stringify(nextEdits));
                     }}
                   />
                   <div className="text-[11px] text-slate-500">
-                    * keyMessage는 이미지에 직접 출력되지 않는 내부 테마입니다.
-                    (재생성 눌렀을 때만 반영)
+                    * 재생성 시 이 문구는 그대로 렌더링됩니다(모델 재작성 금지).
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <label className="text-xs font-black text-slate-600">
-                    이 섹션만 보완 프롬프트(선택)
+                    작은 글씨 수정(서브카피)
                   </label>
                   <textarea
                     rows={3}
                     className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm text-slate-800"
-                    placeholder="예: 제품은 더 크게, 배경은 더 미니멀, 아이콘은 3개만, 텍스트는 짧고 굵게, 테마 컬러는 블루 톤 유지"
-                    value={seg.promptOverride ?? ""}
+                    placeholder={
+                      "한 줄에 한 문장씩 입력하세요\n예: 하루 5초로 깔끔 정리\n예: 넉넉한 수납, 튼튼한 마감"
+                    }
+                    value={subcopyValue}
                     onChange={(e) => {
-                      updateSegment(idx, "promptOverride", e.target.value);
-                      updateSegment(idx, "logicalSections", e.target.value);
+                      const nextEdits = buildNextEdits(seg, {
+                        subcopyText: e.target.value,
+                      });
+                      updateSegment(idx, "edits", JSON.stringify(nextEdits));
                     }}
                   />
                   <div className="text-[11px] text-slate-500">
-                    * 보완 프롬프트는 재생성 시에만 덧붙여 반영됩니다.
+                    * 재생성 시 이 문구들은 그대로 렌더링됩니다(모델 재작성
+                    금지).
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-slate-600">
+                    상세페이지 추가 요청(비주얼 지시 전용)
+                  </label>
+                  <textarea
+                    rows={3}
+                    className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm text-slate-800"
+                    placeholder="예: 제품은 더 크게, 좌측 배치, 배경은 화이트 우드톤, 소품은 최소, 탑다운 각도, 자연광, 프리미엄 톤"
+                    value={visualValue}
+                    onChange={(e) => {
+                      const nextEdits = buildNextEdits(seg, {
+                        visualRequest: e.target.value,
+                      });
+                      updateSegment(idx, "edits", JSON.stringify(nextEdits));
+                    }}
+                  />
+                  <div className="text-[11px] text-slate-500">
+                    * 이 입력은 비주얼 연출 지시로만 사용되며, 이미지 텍스트로
+                    출력되지 않습니다.
                   </div>
                 </div>
               </div>

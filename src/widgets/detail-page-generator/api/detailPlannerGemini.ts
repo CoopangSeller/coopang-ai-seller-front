@@ -1,7 +1,11 @@
 // src/widgets/detail-page-generator/api/detailPlannerGemini.ts
 import { ModelType } from "@/shared/types";
-import { DetailImageSegment, PageLength, ProductInfo } from "../model/types"
-import { generateImage, generateJsonWithSchema, Type } from "@/shared/api/gemini/geminiService";
+import { DetailImageSegment, PageLength, ProductInfo } from "../model/types";
+import {
+  generateImage,
+  generateJsonWithSchema,
+  Type,
+} from "@/shared/api/gemini/geminiService";
 
 function safeJoin(arr?: string[]) {
   return (arr ?? []).filter(Boolean).join(", ");
@@ -109,6 +113,7 @@ ${usp || "(미입력)"}
 function normalizePlannedSegments(raw: any): DetailImageSegment[] {
   const arr = Array.isArray(raw) ? raw : [];
   return arr.map((s, idx) => {
+    const id = String(s?.id || `s${idx + 1}`);
     const title = clampLine(String(s?.title || ""), 32);
     const keyMessage = clampLine(String(s?.keyMessage || ""), 14); // 내부 토큰이므로 더 짧게
     const logicalSections = Array.isArray(s?.logicalSections)
@@ -119,7 +124,8 @@ function normalizePlannedSegments(raw: any): DetailImageSegment[] {
       : [];
 
     return {
-      id: String(s?.id || `s${idx + 1}`),
+      id,
+      template: id as any, // id가 템플릿 키(HERO...)로 들어오므로 그대로 매핑
       title,
       keyMessage,
       logicalSections,
@@ -128,29 +134,76 @@ function normalizePlannedSegments(raw: any): DetailImageSegment[] {
   });
 }
 
+function normalizeLogicalSections(v: unknown): string[] {
+  if (Array.isArray(v))
+    return v
+      .filter((x) => typeof x === "string")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+  if (typeof v === "string") {
+    const trimmed = v.trim();
+
+    // JSON 배열 문자열도 지원: '["a","b"]'
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed
+            .filter((x) => typeof x === "string")
+            .map((s) => s.trim())
+            .filter(Boolean);
+        }
+      } catch {}
+    }
+
+    return trimmed
+      .split(/\r?\n|,/g)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
 /**
  * ✅ KeyMessage 미출력(테마 전용) + 쿠팡 상업용 레이아웃 룰 포함
- * - 렌더링 텍스트: title + logicalSections만
- * - keyMessage는 “DO NOT PRINT” 영역으로만 제공
+ * - 헤더/서브카피는 seg.edits를 우선 사용하고 “렌더링 텍스트 고정”
+ * - seg.edits.visualRequest는 “비주얼 지시” 블록에만 삽입(렌더링 텍스트 금지)
  */
 function buildCoupangSectionImagePrompt(info: ProductInfo, seg: DetailImageSegment) {
   const themeToken = (seg.keyMessage || "").trim();
-  const title = (seg.title || "").trim();
-  const bullets = (seg.logicalSections || []).filter(Boolean).slice(0, 3);
 
-  const identityLock = 
-     [
-        "[REFERENCE IMAGE LOCK (HIGHEST PRIORITY)]",
-        "- Match the product in the reference images EXACTLY.",
-        "- Do NOT change: shape/silhouette, proportions, color, material, texture, label/logo placement, number of parts, openings/closures.",
-        "- Do NOT redesign the product. Do NOT generate a different model/variant.",
-        "- Do NOT add/remove accessories unless they are clearly present in the reference images.",
-        "- Single product only (no duplicates).",
-        "- Keep the product as the main subject and unobstructed.",
-        
-        "[PRODUCT CONSISTENCY]",
-        "- Keep the product consistent and realistic. Do not invent new parts.",
-      ].join("\n")
+  const headerText = clampLine(
+    (seg.edits?.headerText ?? seg.title ?? "").trim(),
+    64,
+  );
+
+  const rawSubcopy = (
+    seg.edits?.subcopyText ??
+    (Array.isArray(seg.logicalSections) ? seg.logicalSections.join("\n") : "")
+  ).trim();
+
+  const bullets = normalizeLogicalSections(rawSubcopy).slice(0, 3);
+
+  // ✅ 비주얼 지시(렌더링 텍스트로 사용 금지)
+  const visualRequest = (
+    seg.edits?.visualRequest ??
+    (seg.promptOverride || "")
+  ).trim();
+
+  const identityLock = [
+    "[REFERENCE IMAGE LOCK (HIGHEST PRIORITY)]",
+    "- Match the product in the reference images EXACTLY.",
+    "- Do NOT change: shape/silhouette, proportions, color, material, texture, label/logo placement, number of parts, openings/closures.",
+    "- Do NOT redesign the product. Do NOT generate a different model/variant.",
+    "- Do NOT add/remove accessories unless they are clearly present in the reference images.",
+    "- Single product only (no duplicates).",
+    "- Keep the product as the main subject and unobstructed.",
+    "",
+    "[PRODUCT CONSISTENCY]",
+    "- Keep the product consistent and realistic. Do not invent new parts.",
+  ].join("\n");
 
   const themeHint = themeToken
     ? [
@@ -159,13 +212,32 @@ function buildCoupangSectionImagePrompt(info: ProductInfo, seg: DetailImageSegme
       ].join("\n")
     : "Use the intended section theme only to decide composition and emphasis (do not print it).";
 
+  // ✅ 재생성 변이 토큰(렌더링 금지)
+  const variationToken = (seg.regenNonce || "").trim();
+  const variationHint = variationToken
+    ? [
+        `Variation token (DO NOT PRINT THIS TEXT): "${variationToken}"`,
+        "- Use it to create a different composition/camera angle/prop arrangement while keeping the product identity locked.",
+        "- Do NOT change the product. Only vary the scene/layout within the same section intent.",
+      ].join("\n")
+    : "";
+
+  // ✅ 헤더/서브카피는 모델이 재작성하지 못하게 “렌더링 텍스트 고정”
   const textPack = [
-    "[TEXT TO RENDER (KOREAN) — ONLY THESE TEXTS]",
-    title ? `- Headline (bold, 1 line): "${title}"` : "- Headline: (none)",
-    bullets.length ? `- Sub points (max 2~3, very short): ${bullets.map((b) => `"${b}"`).join(", ")}` : "- Sub points: (none)",
+    "[TEXT TO RENDER (KOREAN) — RENDER EXACTLY AS GIVEN]",
+    headerText
+      ? `- Headline (bold, 1 line): "${headerText}"`
+      : "- Headline: (none)",
+    bullets.length
+      ? `- Sub points (max 2~3): ${bullets
+          .map((b) => `"${clampLine(b, 28)}"`)
+          .join(", ")}`
+      : "- Sub points: (none)",
     "",
-    "[STRICT RULE]",
-    "- Never render/print the theme token (keyMessage).",
+    "[STRICT TEXT LOCK]",
+    "- Render the Korean texts EXACTLY. Do NOT paraphrase, rewrite, re-order, or add/remove words.",
+    "- Keep punctuation/spacing as-is. Do NOT translate to English.",
+    "- Never render/print the theme token (keyMessage) or variation token.",
     "- Do not invent extra sentences at the bottom (no white footer captions).",
     "- No random english letters, no watermarks, no fake brand logos.",
   ].join("\n");
@@ -184,8 +256,21 @@ function buildCoupangSectionImagePrompt(info: ProductInfo, seg: DetailImageSegme
     "[PRODUCT CONTEXT]",
     info.name ? `- Product: ${info.name}` : "",
     info.category ? `- Category: ${info.category}` : "",
-    info.detailExtraPrompt?.trim() ? `- Extra direction: ${info.detailExtraPrompt.trim()}` : "",
-  ].filter(Boolean).join("\n");
+    info.detailExtraPrompt?.trim()
+      ? `- Extra direction: ${info.detailExtraPrompt.trim()}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const visualBlock = [
+    "Visual direction (photo/scene):",
+    seg.visualPrompt?.trim() || "(none)",
+    visualRequest ? "[VISUAL REQUEST (DO NOT RENDER AS TEXT)]" : "",
+    visualRequest || "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   return [
     "Create a single high-conversion Coupang mobile detail-section image.",
@@ -194,13 +279,13 @@ function buildCoupangSectionImagePrompt(info: ProductInfo, seg: DetailImageSegme
     identityLock,
     "",
     themeHint,
+    variationHint,
     "",
     layoutRules,
     "",
     productContext,
     "",
-    "Visual direction (photo/scene):",
-    seg.visualPrompt?.trim() || "(none)",
+    visualBlock,
     "",
     textPack,
   ]
@@ -233,7 +318,7 @@ export async function planDetailPage(
   };
 
   const raw = await generateJsonWithSchema<any[]>(model, prompt, schema);
-  
+
   return normalizePlannedSegments(raw);
 }
 
@@ -251,17 +336,11 @@ export async function generateDetailSectionImage(args: {
 }): Promise<string | null> {
   const prompt = buildCoupangSectionImagePrompt(args.info, args.seg);
 
-  const url = await generateImage(
-    prompt,
-    args.modelType,
-    "9:16",
-    args.referenceImages,
-    {
-      allowText: args.allowText ?? true,
-      imageSize: args.imageSize ?? "2K",
-      modelOverride: args.overrideModel,
-    },
-  );
+  const url = await generateImage(prompt, args.modelType, "9:16", args.referenceImages, {
+    allowText: args.allowText ?? true,
+    imageSize: args.imageSize ?? "2K",
+    modelOverride: args.overrideModel,
+  });
 
   return url ?? null;
 }

@@ -25,7 +25,8 @@ function toHttpError(status: number, body: unknown): HttpError {
   return { status, message: msg, body };
 }
 
-export type HttpBaseOptions = RequestInit & {
+export type HttpBaseOptions = Omit<RequestInit, "headers"> & {
+  // ✅ 항상 HeadersInit을 받되 내부에서는 Record로 정규화해서 사용
   headers?: HeadersInit;
 };
 
@@ -33,19 +34,23 @@ function normalizeHeaders(h?: HeadersInit): Record<string, string> {
   if (!h) return {};
   if (h instanceof Headers) return Object.fromEntries(h.entries());
   if (Array.isArray(h)) return Object.fromEntries(h);
-  return h as Record<string, string>;
+  // RequestInit.headers가 Record<string,string> 형태로 들어오는 케이스
+  return { ...(h as Record<string, string>) };
 }
 
 export async function httpBase<T>(input: RequestInfo, init?: HttpBaseOptions): Promise<T> {
-    const baseHeaders = normalizeHeaders(init?.headers);
-  
-    const res = await fetch(resolveUrl(input), {
+  const baseHeaders = normalizeHeaders(init?.headers);
+
+  // ✅ headers는 Record<string,string>로만 구성해서 HeadersInit 문제를 제거
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...baseHeaders,
+  };
+
+  const res = await fetch(resolveUrl(input), {
     ...init,
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...baseHeaders,
-    },
+    headers,
   });
 
   if (!res.ok) {

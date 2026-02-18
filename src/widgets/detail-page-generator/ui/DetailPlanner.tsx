@@ -1,5 +1,6 @@
 import React from "react";
 import { useEffect, useState } from "react";
+import { useLocation, useSearchParams } from "react-router-dom";
 import StepInput from "./steps/StepInput";
 import ResultPreview from "./result/ResultPreview";
 import { useDetailPlannerState } from "../model/useDetailPlannerState";
@@ -7,6 +8,19 @@ import { useDetailPlannerState } from "../model/useDetailPlannerState";
 const DetailPlanner: React.FC = () => {
   const s = useDetailPlannerState();
   const [elapsed, setElapsed] = useState(0);
+  const loc = useLocation();
+  const [sp] = useSearchParams();
+
+  // ✅ 소싱에서 "기획하기" 진입 시 판매상품명 자동 세팅
+  useEffect(() => {
+    const fromState = (loc.state as any)?.prefillName;
+    const fromQuery = sp.get("name");
+    const name = String(fromState ?? fromQuery ?? "").trim();
+    if (!name) return;
+    if ((s.info.name ?? "").trim()) return;
+    s.setInfo((prev) => ({ ...prev, name }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!s.isPlanning) return;
@@ -31,7 +45,6 @@ const DetailPlanner: React.FC = () => {
           competitorPaste={s.competitorPaste}
           setCompetitorPaste={s.setCompetitorPaste}
           uspLoading={s.uspLoading}
-          onSuggestUSP={s.onSuggestUSP}
           resetAll={s.resetAll}
           canPlan={s.canPlan}
           // step2 cut studio
@@ -78,11 +91,11 @@ const DetailPlanner: React.FC = () => {
           <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center space-y-4 max-w-sm text-center">
             <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
 
-            {elapsed < 10 && (
+            {elapsed < 30 && (
               <p className="font-bold">AI가 기획안을 생성 중입니다</p>
             )}
 
-            {elapsed >= 10 && elapsed < 40 && (
+            {elapsed >= 30 && elapsed < 50 && (
               <>
                 <p className="font-bold text-slate-800">
                   AI 서버가 혼잡해 지연되고 있습니다
@@ -91,7 +104,7 @@ const DetailPlanner: React.FC = () => {
               </>
             )}
 
-            {elapsed >= 40 && (
+            {elapsed >= 50 && (
               <>
                 <p className="font-bold text-slate-800">
                   기획 생성이 오래 걸리고 있습니다

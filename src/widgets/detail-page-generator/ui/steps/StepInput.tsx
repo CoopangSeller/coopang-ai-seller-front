@@ -39,7 +39,6 @@ type Props = {
   competitorPaste: string;
   setCompetitorPaste: (v: string) => void;
   uspLoading: boolean;
-  onSuggestUSP: () => Promise<void>;
 
   canPlan: boolean;
   resetAll: () => void;
@@ -58,7 +57,6 @@ const StepInput: React.FC<Props> = (p) => {
         competitorPaste={p.competitorPaste}
         setCompetitorPaste={p.setCompetitorPaste}
         uspLoading={p.uspLoading}
-        onSuggestUSP={p.onSuggestUSP}
         resetAll={p.resetAll}
       />
 

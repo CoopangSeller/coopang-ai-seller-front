@@ -8,14 +8,35 @@ let refreshInFlight: Promise<string | null> | null = null;
 
 type RefreshResponse = { accessToken: string };
 
+function getServerErrorCode(err: HttpError): string | null {
+  const body = err?.body as any;
+  return typeof body?.error === "string" ? body.error : null;
+}
+
+function shouldRefresh(err: HttpError) {
+  if (err?.status !== 401) return false;
+  const token = session.getToken();
+  if (!token) return false;
+  const code = getServerErrorCode(err);
+  if (code === "JWT 토큰이 만료되었습니다.") return true;
+  return false;
+}
+
+// ✅ authHttp.ts 내부에서만 쓰는 헤더 정규화
+function normalizeHeaders(h?: HeadersInit): Record<string, string> {
+  if (!h) return {};
+  if (h instanceof Headers) return Object.fromEntries(h.entries());
+  if (Array.isArray(h)) return Object.fromEntries(h);
+  return { ...(h as Record<string, string>) };
+}
+
 async function refreshAccessToken(): Promise<string | null> {
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
       try {
-        // ⚠️ features/auth/refreshApi를 import하지 않고, 여기서 직접 호출해 순환 의존 제거
         const r = await httpBase<RefreshResponse>("/auth/token/refresh", {
           method: "POST",
-          // refresh는 조용히 처리 (로딩/토스트 없음)
+          headers: authHeader(), // ✅ Record<string,string>만 반환
         });
         session.setToken(r.accessToken);
         return r.accessToken;
@@ -30,16 +51,16 @@ async function refreshAccessToken(): Promise<string | null> {
   return refreshInFlight;
 }
 
-function authHeader() {
+function authHeader(): Record<string, string> {
   const token = session.getToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 export type AuthHttpOptions = HttpBaseOptions & {
-  retryOnAuthError?: boolean;  // default true
-  showGlobalLoading?: boolean; // default true
-  showErrorToast?: boolean;    // default true
-  errorToastTitle?: string;    // default "오류"
+  retryOnAuthError?: boolean;
+  showGlobalLoading?: boolean;
+  showErrorToast?: boolean;
+  errorToastTitle?: string;
 };
 
 export async function authHttp<T>(input: RequestInfo, init?: AuthHttpOptions): Promise<T> {
@@ -48,12 +69,15 @@ export async function authHttp<T>(input: RequestInfo, init?: AuthHttpOptions): P
   const showErrorToast = init?.showErrorToast ?? true;
   const errorToastTitle = init?.errorToastTitle ?? "오류";
 
+  // ✅ init.headers도 Record로 정규화해서 병합 (spread로 HeadersInit 섞지 않기)
+  const initHeaders = normalizeHeaders(init?.headers);
+
   const call = (extraHeaders?: Record<string, string>) =>
     httpBase<T>(input, {
       ...init,
       headers: {
         ...authHeader(),
-        ...(init?.headers || {}),
+        ...initHeaders,
         ...(extraHeaders || {}),
       },
     });
@@ -66,7 +90,7 @@ export async function authHttp<T>(input: RequestInfo, init?: AuthHttpOptions): P
     } catch (e) {
       const err = e as HttpError;
 
-      if (err?.status === 401 && retryOnAuthError) {
+      if (retryOnAuthError && shouldRefresh(err)) {
         const newToken = await refreshAccessToken();
         if (newToken) {
           return await call({ Authorization: `Bearer ${newToken}` });
@@ -74,12 +98,14 @@ export async function authHttp<T>(input: RequestInfo, init?: AuthHttpOptions): P
       }
 
       if (showErrorToast) {
+        // 프로젝트 toastStore API에 맞춤(push vs getState().push 등 혼용 가능)
         toastStore.push({
           type: "error",
           title: errorToastTitle,
           message: err?.message ?? "요청 실패",
         });
       }
+
       throw e;
     }
   } finally {

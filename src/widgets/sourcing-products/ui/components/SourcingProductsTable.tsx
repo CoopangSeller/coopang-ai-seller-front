@@ -1,16 +1,19 @@
-import React from "react";
-import { calcDerived, SourcingProductRow } from "@/entities/sourcing-product";
-import { CellPopover, ImageIcon, OpBadge, UrlIcon } from "./GridAtoms";
+import React, { useMemo } from "react";
 import {
-  CategorySelect,
-  DeferredCommitInput,
-  FeePercentInput,
-  MoneyInput,
-  MAX_URL_LEN,
-} from "./GridInputs";
+  calcDerived,
+  formatRoiPercent,
+  type SourcingProductRow,
+} from "@/entities/sourcing-product";
+import { OpBadge } from "./GridAtoms";
+import { CategorySelect, DeferredCommitInput, MoneyInput } from "./GridInputs";
+
+function isEditableElement(el: Element | null) {
+  return !!el?.closest("input, textarea, select, button, a");
+}
 
 export function SourcingProductsTable(props: {
   rows: SourcingProductRow[];
+
   selectedId: string | null;
   setSelectedId: (id: string) => void;
 
@@ -23,6 +26,9 @@ export function SourcingProductsTable(props: {
   isMdUp: boolean;
 
   updateCell: (id: string, patch: Partial<SourcingProductRow>) => void;
+
+  onRowDoubleClick: (id: string) => void;
+  onRowEnter: (id: string) => void;
 }) {
   const {
     rows,
@@ -43,8 +49,6 @@ export function SourcingProductsTable(props: {
   const tdBase =
     "px-2 py-1 align-middle text-xs text-slate-900 border border-slate-200";
 
-  const lossTint = "bg-rose-50/60";
-
   const inputBase =
     "h-8 w-full rounded-xl px-2 text-xs outline-none " +
     "border border-transparent focus:border-slate-200 focus:bg-white " +
@@ -61,57 +65,55 @@ export function SourcingProductsTable(props: {
   const W_CHECK = 40;
   const W_STATUS = 64;
   const W_NO = 48;
-  const W_KEYWORD = 224;
+  const W_IMAGE = 76;
+  const W_KEYWORD = 220;
   const W_VENDOR = 160;
-  const W_REF = 176;
 
   const B = 1;
   const LEFT_CHECK = 0;
   const LEFT_STATUS = W_CHECK + B * 1;
   const LEFT_NO = LEFT_STATUS + W_STATUS + B * 1;
-  const LEFT_KEYWORD = LEFT_NO + W_NO + B * 1;
+  const LEFT_IMAGE = LEFT_NO + W_NO + B * 1;
+  const LEFT_KEYWORD = LEFT_IMAGE + W_IMAGE + B * 1;
   const LEFT_VENDOR = LEFT_KEYWORD + W_KEYWORD + B * 1;
 
-  // ✅ 선택 강조:
-  // - row(비-sticky)는 은은하게(투명도 OK)
-  // - sticky는 절대 투명도 금지(겹침 방지) → 불투명 bg-blue-50
+  // ✅ 선택 강조
   const selectedRowBg = "bg-blue-50/60";
-  const selectedStickyBg = "bg-blue-50"; // ✅ opaque
+  const selectedStickyBg = "bg-blue-50"; // opaque
   const headBg = "bg-slate-50";
 
   const stickyBg = (isSelected: boolean) =>
     isSelected ? selectedStickyBg : "bg-white";
 
+  const derivedById = useMemo(() => {
+    const m = new Map<string, ReturnType<typeof calcDerived>>();
+    rows.forEach((r) => m.set(r.id, calcDerived(r)));
+    return m;
+  }, [rows]);
+
   return (
     <div className="mt-4 overflow-auto rounded-2xl border border-slate-200">
-      <table className="min-w-[2000px] w-full table-fixed border-collapse">
+      <table className="min-w-[1520px] w-full table-fixed border-collapse">
         <colgroup>
           <col style={{ width: W_CHECK }} />
           <col style={{ width: W_STATUS }} />
           <col style={{ width: W_NO }} />
+          <col style={{ width: W_IMAGE }} />
           <col style={{ width: W_KEYWORD }} />
           <col style={{ width: W_VENDOR }} />
-          <col style={{ width: W_REF }} />
 
-          <col style={{ width: 220 }} />
-          <col style={{ width: 240 }} />
+          <col style={{ width: 260 }} />
           <col style={{ width: 110 }} />
           <col style={{ width: 130 }} />
-          <col style={{ width: 240 }} />
-          <col style={{ width: 120 }} />
+          <col style={{ width: 130 }} />
           <col style={{ width: 140 }} />
           <col style={{ width: 120 }} />
           <col style={{ width: 140 }} />
-          <col style={{ width: 110 }} />
-          <col style={{ width: 140 }} />
-          <col style={{ width: 120 }} />
           <col style={{ width: 220 }} />
-          <col style={{ width: 260 }} />
         </colgroup>
 
         <thead>
           <tr>
-            {/* CHECK */}
             <th
               className={`${thCls} ${stickyHeadCls} ${headBg}`}
               style={{ left: LEFT_CHECK }}
@@ -141,6 +143,13 @@ export function SourcingProductsTable(props: {
 
             <th
               className={`${thCls} ${stickyHeadCls} ${headBg}`}
+              style={{ left: LEFT_IMAGE }}
+            >
+              이미지
+            </th>
+
+            <th
+              className={`${thCls} ${stickyHeadCls} ${headBg}`}
               style={{ left: LEFT_KEYWORD }}
             >
               키워드
@@ -153,50 +162,29 @@ export function SourcingProductsTable(props: {
               도매처
             </th>
 
-            <th className={`${thCls} ${headBg}`}>참고 상품</th>
-
-            {[
-              "1688 URL",
-              "이미지",
-              "원가(위안)",
-              "원가(원)",
-              "쿠팡 카테고리",
-              "운임(원)",
-              "판매가(원)",
-              "수수료(%)",
-              "판매수수료(원)",
-              "부가세",
-              "그로스마진",
-              "그로스마진율",
-              "최소 광고 수익률",
-              "상품명",
-            ].map((h) => (
-              <th key={h} className={`${thCls} ${headBg}`}>
-                {h}
-              </th>
-            ))}
+            <th className={`${thCls} ${headBg}`}>상품명</th>
+            <th className={`${thCls} ${headBg}`}>원가(위안)</th>
+            <th className={`${thCls} ${headBg}`}>원가(원)</th>
+            <th className={`${thCls} ${headBg}`}>판매가(원)</th>
+            <th className={`${thCls} ${headBg}`}>마진(원)</th>
+            <th className={`${thCls} ${headBg}`}>마진율</th>
+            <th className={`${thCls} ${headBg}`}>최소 ROI</th>
+            <th className={`${thCls} ${headBg}`}>쿠팡 카테고리</th>
           </tr>
         </thead>
 
         <tbody>
-          {rows.map((r) => {
-            const d = calcDerived(r);
+          {rows.map((r, idx) => {
+            const d = derivedById.get(r.id)!;
             const isSelected = r.id === selectedId;
+            const isLoss = d.grossMargin != null && d.grossMargin < 0;
 
             const sale = r.salePriceKrw ?? null;
             const gm = d.grossMargin ?? null;
-            const roas =
-              sale != null && gm != null && gm > 0 ? sale / gm : null;
-            const roasPct = roas != null ? Math.round(roas * 100) : null;
-
-            const recommended =
-              r.costCny != null ? (r.costCny <= 10 ? 350 : 300) : null;
-            const over =
-              roasPct != null && recommended != null
-                ? roasPct > recommended
-                : false;
-
-            const isLoss = d.grossMargin != null && d.grossMargin < 0;
+            const minRoiPct =
+              sale != null && gm != null && gm > 0
+                ? Math.round((sale / gm) * 100)
+                : null;
 
             const hover = !isSelected ? "hover:bg-slate-50" : "";
             const rowBg = isSelected ? selectedRowBg : "";
@@ -206,17 +194,26 @@ export function SourcingProductsTable(props: {
             return (
               <tr
                 key={r.id}
+                tabIndex={0}
                 onMouseDown={(e) => {
-                  // 입력 요소 클릭은 행 선택과 분리(포커스 안정) - 대신 onFocus에서 선택 이동
                   const t = e.target as HTMLElement;
                   if (t.closest("input, textarea, select, button")) return;
                   setSelectedId(r.id);
+                  (e.currentTarget as HTMLTableRowElement).focus();
+                }}
+                onDoubleClick={() => props.onRowDoubleClick(r.id)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  if (isEditableElement(document.activeElement)) return;
+                  e.preventDefault();
+                  props.onRowEnter(r.id);
                 }}
                 className={[
-                  "cursor-pointer",
+                  "cursor-pointer outline-none",
                   hover,
                   rowBg,
                   r.op === "delete" ? "opacity-60" : "",
+                  "focus:ring-2 focus:ring-slate-300 focus:ring-inset",
                 ].join(" ")}
               >
                 {/* CHECK */}
@@ -229,9 +226,9 @@ export function SourcingProductsTable(props: {
                   ].join(" ")}
                   style={stickyStyle(LEFT_CHECK)}
                 >
-                  {isLoss && (
+                  {isLoss ? (
                     <span className="absolute left-0 top-0 h-full w-[2px] bg-rose-300" />
-                  )}
+                  ) : null}
                   <div className="flex justify-center">
                     <input
                       type="checkbox"
@@ -261,7 +258,33 @@ export function SourcingProductsTable(props: {
                   )}
                   style={stickyStyle(LEFT_NO)}
                 >
-                  <span className="tabular-nums">{r.no ?? ""}</span>
+                  <span className="tabular-nums">{r.no ?? idx + 1}</span>
+                </td>
+
+                {/* IMAGE */}
+                <td
+                  className={[tdBase, stickyCls, stickyBg(isSelected)].join(
+                    " ",
+                  )}
+                  style={stickyStyle(LEFT_IMAGE)}
+                >
+                  <div className="flex items-center justify-center">
+                    {r.imageUrl ? (
+                      <img
+                        src={r.imageUrl}
+                        alt=""
+                        className="h-10 w-10 rounded-xl object-cover border border-slate-200 bg-white"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).style.display =
+                            "none";
+                        }}
+                      />
+                    ) : (
+                      <div className="h-10 w-10 rounded-xl border border-slate-200 bg-slate-100" />
+                    )}
+                  </div>
                 </td>
 
                 {/* KEYWORD */}
@@ -271,18 +294,16 @@ export function SourcingProductsTable(props: {
                   )}
                   style={stickyStyle(LEFT_KEYWORD)}
                 >
-                  <CellPopover title="키워드" value={r.keyword}>
-                    <DeferredCommitInput
-                      className={inputBase}
-                      dataRow={r.id}
-                      dataCol="keyword"
-                      value={r.keyword}
-                      onCommit={(next) => updateCell(r.id, { keyword: next })}
-                      onFocus={focusRow}
-                      placeholder="키워드"
-                      maxLen={80}
-                    />
-                  </CellPopover>
+                  <DeferredCommitInput
+                    className={inputBase}
+                    dataRow={r.id}
+                    dataCol="keyword"
+                    value={r.keyword}
+                    onCommit={(next) => updateCell(r.id, { keyword: next })}
+                    onFocus={focusRow}
+                    placeholder="키워드"
+                    maxLen={80}
+                  />
                 </td>
 
                 {/* VENDOR */}
@@ -295,233 +316,16 @@ export function SourcingProductsTable(props: {
                   ].join(" ")}
                   style={stickyStyle(LEFT_VENDOR)}
                 >
-                  <CellPopover title="도매처" value={r.vendor}>
-                    <DeferredCommitInput
-                      className={inputBase}
-                      dataRow={r.id}
-                      dataCol="vendor"
-                      value={r.vendor}
-                      onCommit={(next) => updateCell(r.id, { vendor: next })}
-                      onFocus={focusRow}
-                      placeholder="도매처"
-                      maxLen={60}
-                    />
-                  </CellPopover>
-                </td>
-
-                {/* REF (non-sticky) */}
-                <td className={tdBase}>
-                  <CellPopover title="참고 상품" value={r.refProduct}>
-                    <DeferredCommitInput
-                      className={inputBase}
-                      dataRow={r.id}
-                      dataCol="refProduct"
-                      value={r.refProduct}
-                      onCommit={(next) =>
-                        updateCell(r.id, { refProduct: next })
-                      }
-                      onFocus={focusRow}
-                      placeholder="참고 상품"
-                      maxLen={120}
-                    />
-                  </CellPopover>
-                </td>
-
-                {/* URL */}
-                <td className={`${tdBase} ${isLoss ? lossTint : ""}`}>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <UrlIcon url={r.url1688} />
-                    <div className="min-w-0 flex-1">
-                      <CellPopover title="1688 URL" value={r.url1688}>
-                        <DeferredCommitInput
-                          className={inputBase}
-                          dataRow={r.id}
-                          dataCol="url1688"
-                          value={r.url1688}
-                          onCommit={(next) =>
-                            updateCell(r.id, { url1688: next })
-                          }
-                          onFocus={focusRow}
-                          placeholder="https://..."
-                          maxLen={MAX_URL_LEN}
-                        />
-                      </CellPopover>
-                    </div>
-                  </div>
-                </td>
-
-                {/* IMAGE */}
-                <td className={`${tdBase} ${isLoss ? lossTint : ""}`}>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <ImageIcon url={r.imageUrl} />
-                    <div className="min-w-0 flex-1">
-                      <CellPopover
-                        title="이미지 URL"
-                        value={r.imageUrl}
-                        widthClassName="w-[520px]"
-                      >
-                        <DeferredCommitInput
-                          className={inputBase}
-                          dataRow={r.id}
-                          dataCol="imageUrl"
-                          value={r.imageUrl}
-                          onCommit={(next) =>
-                            updateCell(r.id, { imageUrl: next })
-                          }
-                          onFocus={focusRow}
-                          placeholder="이미지 URL"
-                          maxLen={MAX_URL_LEN}
-                        />
-                      </CellPopover>
-                    </div>
-                  </div>
-                </td>
-
-                {/* COST CNY */}
-                <td
-                  className={`${tdBase} ${isLoss ? lossTint : ""} text-right`}
-                >
-                  <MoneyInput
-                    prefix="¥"
-                    value={r.costCny}
-                    onChange={(v) => updateCell(r.id, { costCny: v })}
+                  <DeferredCommitInput
+                    className={inputBase}
+                    dataRow={r.id}
+                    dataCol="vendor"
+                    value={r.vendor}
+                    onCommit={(next) => updateCell(r.id, { vendor: next })}
                     onFocus={focusRow}
-                    placeholder="0"
+                    placeholder="도매처"
+                    maxLen={60}
                   />
-                </td>
-
-                {/* COST KRW */}
-                <td
-                  className={`${tdBase} ${isLoss ? lossTint : ""} text-right`}
-                >
-                  <MoneyInput
-                    prefix="₩"
-                    value={r.costKrw}
-                    onChange={(v) => updateCell(r.id, { costKrw: v })}
-                    onFocus={focusRow}
-                    placeholder="0"
-                  />
-                </td>
-
-                {/* CATEGORY */}
-                <td className={`${tdBase} ${isLoss ? lossTint : ""}`}>
-                  <CategorySelect
-                    value={r.coupangCategory ?? ""}
-                    onSelect={(name, feePercent) => {
-                      updateCell(r.id, {
-                        coupangCategory: name,
-                        ...(feePercent != null
-                          ? { feeRate: feePercent / 100 }
-                          : {}),
-                      });
-                    }}
-                    onFocus={focusRow}
-                  />
-                </td>
-
-                {/* SHIPPING */}
-                <td
-                  className={`${tdBase} ${isLoss ? lossTint : ""} text-right`}
-                >
-                  <MoneyInput
-                    prefix="₩"
-                    value={r.shippingKrw}
-                    onChange={(v) => updateCell(r.id, { shippingKrw: v })}
-                    onFocus={focusRow}
-                    placeholder="3000"
-                  />
-                </td>
-
-                {/* SALE */}
-                <td
-                  className={`${tdBase} ${isLoss ? lossTint : ""} text-right`}
-                >
-                  <MoneyInput
-                    prefix="₩"
-                    value={r.salePriceKrw}
-                    onChange={(v) => updateCell(r.id, { salePriceKrw: v })}
-                    onFocus={focusRow}
-                    placeholder="0"
-                  />
-                </td>
-
-                {/* FEE */}
-                <td
-                  className={`${tdBase} ${isLoss ? lossTint : ""} text-right`}
-                >
-                  <FeePercentInput
-                    feeRate={r.feeRate}
-                    onChange={(v) => updateCell(r.id, { feeRate: v })}
-                    onFocus={focusRow}
-                  />
-                </td>
-
-                {/* FEE AMOUNT */}
-                <td
-                  className={`${tdBase} ${isLoss ? lossTint : ""} text-right tabular-nums`}
-                >
-                  {d.feeAmount == null
-                    ? "–"
-                    : Math.round(d.feeAmount).toLocaleString()}
-                </td>
-
-                {/* VAT */}
-                <td
-                  className={`${tdBase} ${isLoss ? lossTint : ""} text-right tabular-nums`}
-                >
-                  {d.vat == null ? "–" : Math.round(d.vat).toLocaleString()}
-                </td>
-
-                {/* GROSS MARGIN */}
-                <td
-                  className={[
-                    `${tdBase} ${isLoss ? lossTint : ""}`,
-                    "text-right tabular-nums",
-                    d.grossMargin != null && d.grossMargin < 0
-                      ? "text-rose-700 font-bold"
-                      : "",
-                  ].join(" ")}
-                >
-                  {d.grossMargin == null
-                    ? "–"
-                    : Math.round(d.grossMargin).toLocaleString()}
-                </td>
-
-                {/* GROSS MARGIN RATE */}
-                <td
-                  className={`${tdBase} ${isLoss ? lossTint : ""} text-right tabular-nums`}
-                >
-                  {d.grossMarginRate == null
-                    ? "–"
-                    : `${(d.grossMarginRate * 100).toFixed(0)}%`}
-                </td>
-
-                {/* MIN AD ROI */}
-                <td
-                  className={`${tdBase} ${isLoss ? lossTint : ""} text-right`}
-                >
-                  <div className="flex flex-col items-end leading-tight">
-                    <div
-                      className={
-                        over
-                          ? "font-extrabold text-rose-700"
-                          : "font-extrabold text-slate-900"
-                      }
-                    >
-                      {roasPct != null ? `${roasPct}%` : "–"}
-                    </div>
-                    <div className="text-[10px] text-slate-500">
-                      {roasPct == null
-                        ? gm == null
-                          ? "값 입력 필요"
-                          : gm <= 0
-                            ? "마진≤0: 산정 불가"
-                            : "값 입력 필요"
-                        : recommended == null
-                          ? "추천: 원가(위안) 입력"
-                          : `추천: ≤ ${recommended}% (${(r.costCny ?? 0) <= 10 ? "위안≤10" : "위안>10"})`}
-                    </div>
-                  </div>
                 </td>
 
                 {/* PRODUCT NAME */}
@@ -535,6 +339,82 @@ export function SourcingProductsTable(props: {
                     onFocus={focusRow}
                     placeholder="상품명"
                     maxLen={160}
+                  />
+                </td>
+
+                {/* COST CNY */}
+                <td className={`${tdBase} text-right`}>
+                  <MoneyInput
+                    prefix="¥"
+                    value={r.costCny}
+                    onChange={(v) => updateCell(r.id, { costCny: v })}
+                    onFocus={focusRow}
+                    placeholder="0"
+                  />
+                </td>
+
+                {/* COST KRW */}
+                <td className={`${tdBase} text-right`}>
+                  <MoneyInput
+                    prefix="₩"
+                    value={r.costKrw}
+                    onChange={(v) => updateCell(r.id, { costKrw: v })}
+                    onFocus={focusRow}
+                    placeholder="0"
+                  />
+                </td>
+
+                {/* SALE */}
+                <td className={`${tdBase} text-right`}>
+                  <MoneyInput
+                    prefix="₩"
+                    value={r.salePriceKrw}
+                    onChange={(v) => updateCell(r.id, { salePriceKrw: v })}
+                    onFocus={focusRow}
+                    placeholder="0"
+                  />
+                </td>
+
+                {/* GROSS MARGIN */}
+                <td
+                  className={[
+                    tdBase,
+                    "text-right tabular-nums",
+                    d.grossMargin != null && d.grossMargin < 0
+                      ? "text-rose-700 font-black"
+                      : "",
+                  ].join(" ")}
+                >
+                  {d.grossMargin == null
+                    ? "–"
+                    : Math.round(d.grossMargin).toLocaleString()}
+                </td>
+
+                {/* GROSS MARGIN RATE */}
+                <td className={`${tdBase} text-right tabular-nums`}>
+                  {d.grossMarginRate == null
+                    ? "–"
+                    : `${Math.round(d.grossMarginRate * 100)}%`}
+                </td>
+
+                {/* MIN AD ROI */}
+                <td className={`${tdBase} text-right tabular-nums`}>
+                  {minRoiPct == null ? "–" : formatRoiPercent(minRoiPct)}
+                </td>
+
+                {/* CATEGORY */}
+                <td className={tdBase}>
+                  <CategorySelect
+                    value={r.coupangCategory ?? ""}
+                    onSelect={(name, feePercent) => {
+                      updateCell(r.id, {
+                        coupangCategory: name,
+                        ...(feePercent != null
+                          ? { feeRate: feePercent / 100 }
+                          : {}),
+                      });
+                    }}
+                    onFocus={focusRow}
                   />
                 </td>
               </tr>

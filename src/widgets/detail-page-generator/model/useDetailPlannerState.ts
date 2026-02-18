@@ -1,13 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ModelType } from "@/shared/types";
-import { DetailImageSegment, DetailShotKey, PageLength, ProductInfo,} from "../model/types"
+import {
+  DetailImageSegment,
+  DetailShotKey,
+  PageLength,
+  ProductInfo,
+} from "../model/types";
 import { buildCutPrompt } from "../lib/cutPrompts";
 import { useZipExport } from "@/features/file/file-export";
 import { useDraft } from "@/features/draft/model/useDraft";
 import { generateImage } from "@/shared/api/gemini/geminiService";
 import { isModelOverloadedError } from "@/shared/api/gemini/lib/isModelOverloadedError";
-import { planWithPolicy, generateAllSections, imageWithPolicy, isTimeoutError } from "./policy";
+import {
+  planWithPolicy,
+  generateAllSections,
+  imageWithPolicy,
+  isTimeoutError,
+} from "./policy";
 import { STORAGE_KEYS } from "@/shared/config/storageKeys";
+import { toastStore } from "@/shared/model/toastStore";
+import { MissingGeminiApiKeyError } from "@/shared/lib/async";
 
 /** draft 저장 키 */
 const DRAFT_KEY = STORAGE_KEYS.DETAIL_PLANNER_DRAFT;
@@ -31,8 +43,20 @@ function snapshot(seg: DetailImageSegment) {
     logicalSections: seg.logicalSections,
     visualPrompt: seg.visualPrompt,
     imageUrl: seg.imageUrl,
+    promptOverride: seg.promptOverride,
+    edits: seg.edits,
     createdAt: Date.now(),
   };
+}
+
+function safeParseEdits(value: string): DetailImageSegment["edits"] | undefined {
+  try {
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== "object") return undefined;
+    return parsed as DetailImageSegment["edits"];
+  } catch {
+    return undefined;
+  }
 }
 
 export function useDetailPlannerState() {
@@ -46,7 +70,14 @@ export function useDetailPlannerState() {
   const planRunIdRef = useRef(0);
 
   /** 모델 타입 선택 */
-  const [modelType, setModelType] = useState<ModelType>(ModelType.FREE);
+  function loadModelType(): ModelType {
+    // ✅ env 키가 있으면 기본은 3 pro
+    const hasEnvKey = !!import.meta.env.VITE_GEMINI_API_KEY;
+
+    return hasEnvKey ? ModelType.PAID : ModelType.FREE;
+  }
+
+  const [modelType, setModelType] = useState<ModelType>(loadModelType());
 
   /** 컷 탭 선택 */
   const [cutTab, setCutTab] = useState<DetailShotKey>("cutout");
@@ -55,14 +86,18 @@ export function useDetailPlannerState() {
   const [generatingCut, setGeneratingCut] = useState(false);
 
   /** 컷 미리보기(키별 3장) */
-  const [cutPreviews, setCutPreviews] = useState<Record<DetailShotKey, string[]>>({
+  const [cutPreviews, setCutPreviews] = useState<
+    Record<DetailShotKey, string[]>
+  >({
     cutout: [],
     lifestyle: [],
     model: [],
   });
 
   /** 최종 선택된 컷(키별 1장) */
-  const [finalCuts, setFinalCuts] = useState<Record<DetailShotKey, string | null>>({
+  const [finalCuts, setFinalCuts] = useState<
+    Record<DetailShotKey, string | null>
+  >({
     cutout: null,
     lifestyle: null,
     model: null,
@@ -93,7 +128,12 @@ export function useDetailPlannerState() {
       pricing: { originalPrice: "", salePrice: "" },
       shots: {
         cutout: { key: "cutout", label: "누끼컷", referenceImages: [], prompt: "" },
-        lifestyle: { key: "lifestyle", label: "활용컷", referenceImages: [], prompt: "" },
+        lifestyle: {
+          key: "lifestyle",
+          label: "활용컷",
+          referenceImages: [],
+          prompt: "",
+        },
         model: { key: "model", label: "모델컷", referenceImages: [], prompt: "" },
       },
       detailExtraPrompt: "",
@@ -102,11 +142,8 @@ export function useDetailPlannerState() {
   );
 
   /** draft 기반 info 상태 */
-  const { state: info, setState: setInfo, clear: clearInfoDraft } = useDraft<ProductInfo>(
-    DRAFT_KEY,
-    initialInfo,
-    { version: 2 },
-  );
+  const { state: info, setState: setInfo, clear: clearInfoDraft } =
+    useDraft<ProductInfo>(DRAFT_KEY, initialInfo, { version: 2 });
 
   /** USP 정규화 */
   const normalizedUSP = useMemo(() => normalizeUsp(info.features), [info.features]);
@@ -123,6 +160,9 @@ export function useDetailPlannerState() {
     segmentsRef.current = segments;
   }, [segments]);
 
+  /** 단일 재생성 경쟁조건 방지: 최신 요청만 반영 */
+  const latestRegenTokenRef = useRef<Record<number, string>>({});
+
   /** 캡처 대상 ref 목록(Export용) */
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
 
@@ -136,7 +176,8 @@ export function useDetailPlannerState() {
    */
   const canPlan = useMemo(() => {
     const hasBasics = (info.name ?? "").trim() && (info.category ?? "").trim();
-    const hasAnyFinal = !!finalCuts.cutout || !!finalCuts.lifestyle || !!finalCuts.model;
+    const hasAnyFinal =
+      !!finalCuts.cutout || !!finalCuts.lifestyle || !!finalCuts.model;
     return Boolean(hasBasics && hasAnyFinal);
   }, [info.name, info.category, finalCuts]);
 
@@ -191,7 +232,9 @@ export function useDetailPlannerState() {
         intent: shot.prompt || "",
       });
 
-      const refs = shot.referenceImages?.length ? shot.referenceImages : info.referenceImages;
+      const refs = shot.referenceImages?.length
+        ? shot.referenceImages
+        : info.referenceImages;
 
       const imgs: string[] = [];
       for (let i = 0; i < 3; i++) {
@@ -318,8 +361,48 @@ export function useDetailPlannerState() {
     }
   };
 
+  /** (요구사항) edits 최소 갱신 helper */
+  const updateSegmentEdit = (
+    index: number,
+    patch: Partial<NonNullable<DetailImageSegment["edits"]>>,
+  ) => {
+    setSegments((prev) => {
+      const next = [...prev];
+      const cur = next[index];
+      next[index] = {
+        ...cur,
+        edits: {
+          ...(cur.edits ?? {}),
+          ...patch,
+        },
+      } as DetailImageSegment;
+      return next;
+    });
+  };
+
   /** 세그먼트 필드 직접 수정(텍스트 수정 등) */
-  const updateSegment = (index: number, field: keyof DetailImageSegment, value: string) => {
+  const updateSegment = (
+    index: number,
+    field: keyof DetailImageSegment,
+    value: string,
+  ) => {
+    if (field === "edits") {
+      const parsed = safeParseEdits(value);
+      // JSON 파싱 실패 시 기존 유지(컴파일/런타임 안전)
+      if (!parsed) return;
+
+      setSegments((prev) => {
+        const next = [...prev];
+        next[index] = {
+          ...next[index],
+          edits: parsed,
+        } as DetailImageSegment;
+        return next;
+      });
+      return;
+    }
+
+    // 기존 동작 유지
     setSegments((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], [field]: value } as DetailImageSegment;
@@ -329,11 +412,16 @@ export function useDetailPlannerState() {
 
   /**
    * 섹션 1개 재생성
-   * - promptOverride가 있으면 visualPrompt 뒤에만 덧붙여 보완
-   * - 성공 시 history에 이전 상태 저장(undo)
-   * - imageWithPolicy를 재사용(모델/타임아웃/폴백 일관성)
+   * - 헤더/서브카피: 렌더링 텍스트로 고정(edits에 있는 값만 사용, 없으면 기본 title/logicalSections)
+   * - 비주얼 요청: visualRequest로만 합성(렌더링 텍스트 금지)
+   * - 동일 섹션 재생성 연타 시 최신 요청만 반영(token 비교)
+   * - imageWithPolicy 재사용(모델/타임아웃/폴백 일관성)
    */
   const regenerateOne = async (index: number) => {
+    const regenNonce = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const token = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    latestRegenTokenRef.current[index] = token;
+
     setSegments((prev) => {
       const next = [...prev];
       const cur = next[index];
@@ -344,6 +432,7 @@ export function useDetailPlannerState() {
       next[index] = {
         ...cur,
         isGenerating: true,
+        regenNonce,
         history: history.slice(0, 10),
         future: [],
       };
@@ -357,10 +446,14 @@ export function useDetailPlannerState() {
       const seg = segmentsRef.current[index];
       if (!seg) throw new Error("Invalid segment index");
 
-      const override = (seg.promptOverride || "").trim();
-      const mergedSeg: DetailImageSegment = override
-        ? { ...seg, visualPrompt: `${seg.visualPrompt}\n\n[보완 요청]\n${override}` }
-        : seg;
+      // ✅ visualRequest는 visual 프롬프트에만 합성되도록(렌더링 텍스트 금지)
+      // - buildCoupangSectionImagePrompt에서 seg.edits를 해석한다.
+      // - legacy promptOverride는 visualRequest의 fallback로만 유지
+      const mergedSeg: DetailImageSegment = {
+        ...seg,
+        regenNonce,
+        edits: seg.edits,
+      };
 
       const imageUrl = await imageWithPolicy({
         info,
@@ -369,7 +462,23 @@ export function useDetailPlannerState() {
         referenceImages: refs,
       });
 
+      // ✅ 연타 경쟁조건: 최신 토큰 아니면 결과 무시
+      if (latestRegenTokenRef.current[index] !== token) return;
+
+      // ✅ null이면 사용자에게 실패를 알림
+      if (!imageUrl) {
+        toastStore.push({
+          type: "error",
+          title: "이미지 생성 실패",
+          message:
+            "Gemini 응답에 이미지가 포함되지 않았습니다. (모델/키/안전필터 이슈 가능)",
+          durationMs: 5000,
+        });
+        throw new Error("Image generation returned null");
+      }
+
       setSegments((prev) => {
+        if (latestRegenTokenRef.current[index] !== token) return prev;
         const next = [...prev];
         next[index] = {
           ...next[index],
@@ -378,9 +487,31 @@ export function useDetailPlannerState() {
         };
         return next;
       });
-    } catch (e) {
+    } catch (e: any) {
       console.error("regenerateOne error", e);
+
+      // ✅ 연타 경쟁조건: 최신 토큰 아니면 실패 UI도 무시
+      if (latestRegenTokenRef.current[index] !== token) return;
+
+      // ✅ 키 미설정이면 사용자에게 명확히 안내
+      if (e instanceof MissingGeminiApiKeyError) {
+        toastStore.push({
+          type: "error",
+          title: "Gemini API 키 미설정",
+          message: "VITE_GEMINI_API_KEY가 빌드/배포 환경에 주입되어야 합니다.",
+          durationMs: 6000,
+        });
+      } else {
+        toastStore.push({
+          type: "error",
+          title: "재생성 실패",
+          message: e?.message ? String(e.message) : "알 수 없는 오류",
+          durationMs: 5000,
+        });
+      }
+
       setSegments((prev) => {
+        if (latestRegenTokenRef.current[index] !== token) return prev;
         const next = [...prev];
         next[index] = { ...next[index], isGenerating: false };
         return next;
@@ -408,6 +539,8 @@ export function useDetailPlannerState() {
         logicalSections: last.logicalSections,
         visualPrompt: last.visualPrompt,
         imageUrl: last.imageUrl,
+        promptOverride: last.promptOverride,
+        edits: last.edits,
         history,
         future: future.slice(0, 10),
       };
@@ -435,6 +568,8 @@ export function useDetailPlannerState() {
         logicalSections: nextSnap.logicalSections,
         visualPrompt: nextSnap.visualPrompt,
         imageUrl: nextSnap.imageUrl,
+        promptOverride: nextSnap.promptOverride,
+        edits: nextSnap.edits,
         history: history.slice(0, 10),
         future,
       };
@@ -486,6 +621,7 @@ export function useDetailPlannerState() {
 
     handlePlanAndGenerateAll,
     updateSegment,
+    updateSegmentEdit,
 
     regenerateOne,
     undoOne,

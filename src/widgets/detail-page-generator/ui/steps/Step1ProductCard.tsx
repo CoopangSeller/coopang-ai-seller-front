@@ -11,7 +11,6 @@ type Props = {
   setCompetitorPaste: (v: string) => void;
 
   uspLoading: boolean;
-  onSuggestUSP: () => Promise<void>;
 
   resetAll: () => void;
 };

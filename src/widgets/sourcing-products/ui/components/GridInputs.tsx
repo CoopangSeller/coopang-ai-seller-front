@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
 import { COUPANG_CATEGORIES } from "@/shared/config/coupangCategories";
-import { formatKrw, parseNumber } from "@/shared/lib/format/numberFormat";
+import { formatKrw } from "@/shared/lib/format/numberFormat";
 import {
   feeRateToUiPercent,
   uiPercentToFeeRate,
@@ -95,25 +95,76 @@ export function DeferredCommitInput(props: {
   );
 }
 
+function normalizeDecimalInput(next: string) {
+  // 허용: 숫자, 앞쪽 -, 한 개의 .
+  let s = next.replace(/[^\d.-]/g, "");
+
+  // '-'는 맨 앞 하나만
+  const minus = s.startsWith("-") ? "-" : "";
+  s = s.replace(/-/g, "");
+  s = minus + s;
+
+  // '.'는 첫 번째만 허용
+  const firstDot = s.indexOf(".");
+  if (firstDot >= 0) {
+    const before = s.slice(0, firstDot + 1);
+    const after = s.slice(firstDot + 1).replace(/\./g, "");
+    s = before + after;
+  }
+
+  return s;
+}
+
+function tryParseDecimal(s: string): number | undefined {
+  if (s === "" || s === "-" || s === "." || s === "-.") return undefined;
+  if (s.endsWith(".")) return undefined; // "12." 입력중 상태 유지
+  const n = Number(s);
+  if (!Number.isFinite(n)) return undefined;
+  return n;
+}
+
 export function MoneyInput(props: {
   value?: number;
   onChange: (v?: number) => void;
   placeholder?: string;
   prefix?: "₩" | "¥";
-  onFocus?: () => void; // ✅ 추가
+  onFocus?: () => void;
 }) {
   const { value, onChange, placeholder, prefix } = props;
+
+  const composingRef = useRef(false);
   const [focused, setFocused] = useState(false);
+  const [raw, setRaw] = useState<string>(value == null ? "" : String(value));
+  const lastCommittedRef = useRef<number | undefined>(value);
 
   const display = focused
-    ? value == null
-      ? ""
-      : String(value)
+    ? raw
     : prefix === "¥"
       ? value == null
         ? ""
         : `¥ ${String(value)}`
       : formatKrw(value);
+
+  const commit = () => {
+    let s = raw.trim();
+    s = normalizeDecimalInput(s);
+
+    // "12." -> "12"
+    if (s.endsWith(".")) s = s.slice(0, -1);
+    if (s === "-" || s === "." || s === "-.") s = "";
+
+    if (s === "") {
+      lastCommittedRef.current = undefined;
+      onChange(undefined);
+      return;
+    }
+
+    const n = Number(s);
+    if (!Number.isFinite(n)) return;
+
+    lastCommittedRef.current = n;
+    onChange(n);
+  };
 
   return (
     <input
@@ -128,11 +179,47 @@ export function MoneyInput(props: {
       onFocus={() => {
         props.onFocus?.();
         setFocused(true);
+        setRaw(value == null ? "" : String(value));
       }}
-      onBlur={() => setFocused(false)}
-      onChange={(e) => onChange(parseNumber(e.target.value))}
+      onCompositionStart={() => {
+        composingRef.current = true;
+      }}
+      onCompositionEnd={() => {
+        composingRef.current = false;
+      }}
+      onChange={(e) => {
+        if (!focused) return;
+        const next = normalizeDecimalInput(e.target.value);
+        setRaw(next);
+
+        // 입력 중 parse 가능한 경우는 즉시 반영(원가원 자동계산도 즉시 반응)
+        const n = tryParseDecimal(next);
+        if (n === undefined) return;
+        if (lastCommittedRef.current === n) return;
+        lastCommittedRef.current = n;
+        onChange(n);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          if (!composingRef.current) {
+            commit();
+            (e.currentTarget as HTMLInputElement).blur();
+          }
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          setRaw(value == null ? "" : String(value));
+          (e.currentTarget as HTMLInputElement).blur();
+        }
+      }}
+      onBlur={() => {
+        setFocused(false);
+        if (composingRef.current) return;
+        commit();
+      }}
       placeholder={placeholder}
-      inputMode="numeric"
+      inputMode="decimal"
     />
   );
 }

@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { ROUTES, ROUTE_LABEL } from "@/app/router/paths";
+import { ROUTES, ROUTE_LABEL } from "@/shared/config/routerPaths";
 import { pushRecentPage } from "@/features/recent-pages/model/recentPages";
 
 type Card = {

@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { session, useSession } from "@/entities/session/model/sessionStore";
 import { clearDraftsAndUiCacheExceptAuth } from "@/shared/lib/storage/clearAppStorageExceptAuth";
 
-import { ROUTES, ROUTE_LABEL } from "@/app/router/paths";
+import { ROUTES, ROUTE_LABEL } from "@/shared/config/routerPaths";
 import { RecentPagesMenu } from "@/features/recent-pages/ui/RecentPagesMenu";
 import {
   getRecentPages,
@@ -258,7 +258,7 @@ const Header: React.FC = () => {
     <header className="sticky top-0 z-[100] border-b border-slate-200 bg-white/80 backdrop-blur-xl">
       <div
         ref={wrapRef}
-        className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between gap-4"
+        className="w-full px-6 py-4 flex items-center justify-between gap-4"
       >
         {/* Brand */}
         <div className="flex items-center gap-3 min-w-0">

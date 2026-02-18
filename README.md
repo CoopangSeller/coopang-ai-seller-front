@@ -53,8 +53,8 @@ npm -v
 <summary><b>STEP 2. 프로젝트 받기 (git clone)</b></summary>
 
 ```bash
-git clone <YOUR_REPO_URL>
-cd <PROJECT_FOLDER>
+git clone git@github.com:CoopangSeller/coopang-ai-seller-front.git
+cd coopang-ai-seller-front
 ```
 
 </details>

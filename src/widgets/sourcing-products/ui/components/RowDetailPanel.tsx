@@ -65,13 +65,18 @@ function safeMoney(v: unknown) {
   return typeof v === "number" && Number.isFinite(v) ? v.toLocaleString() : "-";
 }
 
-function toNumString(v: number | null | undefined) {
-  return v == null || !Number.isFinite(v) ? "" : String(v);
+function toNumString(v: unknown) {
+  if (v == null) return "";
+  if (typeof v === "number") return Number.isFinite(v) ? String(v) : "";
+  if (typeof v === "string") return v; // ✅ BigDecimal 문자열 그대로 표시
+  return "";
 }
 
 function parseNumberOrUndef(raw: string) {
-  if (raw === "") return undefined;
-  const n = Number(raw);
+  if (raw.trim() === "") return undefined;
+
+  const normalized = raw.replace(/,/g, "");
+  const n = Number(normalized);
   return Number.isFinite(n) ? n : undefined;
 }
 
@@ -203,6 +208,39 @@ export const RowDetailPanel: React.FC<Props> = ({
   const gm = derived?.grossMargin ?? null;
   const gmRate = derived?.grossMarginRate ?? null;
   const minRoi = derived?.minAdRoi ?? null;
+
+  function KpiCard({
+    label,
+    value,
+    suffix,
+  }: {
+    label: string;
+    value: string;
+    suffix?: string;
+  }) {
+    const full = suffix ? `${value}${suffix}` : value;
+
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+        <div className="text-[11px] font-black text-slate-600">{label}</div>
+
+        {/* 값은 한 줄 고정 + 줄임표 + hover로 전체값 */}
+        <div
+          className="mt-1 text-lg font-black text-slate-900 tabular-nums overflow-hidden text-ellipsis whitespace-nowrap"
+          title={full}
+        >
+          {value}
+        </div>
+
+        {/* 단위는 아래로 내려서 가로폭 확보 */}
+        {suffix ? (
+          <div className="mt-0.5 text-[11px] font-extrabold text-slate-500">
+            {suffix}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="h-full overflow-auto rounded-3xl border border-slate-200 bg-white">
@@ -438,46 +476,36 @@ export const RowDetailPanel: React.FC<Props> = ({
         </div>
 
         {/* China import calc summary */}
+        {/* China import calc summary */}
         <div className="mt-3 rounded-3xl border border-slate-200 bg-slate-50 p-4">
           <div className="text-xs font-black text-slate-700">
             중국 사입 계산 요약
           </div>
+
           {chinaCalcSummary ? (
-            <div className="mt-2 grid grid-cols-2 gap-3 md:grid-cols-4">
-              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                <div className="text-[11px] font-black text-slate-600">
-                  수량
-                </div>
-                <div className="mt-1 text-lg font-black text-slate-900 tabular-nums">
-                  {formatNumber(chinaCalcSummary.qty)}
-                </div>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                <div className="text-[11px] font-black text-slate-600">
-                  전체 비용
-                </div>
-                <div className="mt-1 text-lg font-black text-slate-900 tabular-nums">
-                  {formatNumber(chinaCalcSummary.totalKrw)}
-                </div>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                <div className="text-[11px] font-black text-slate-600">
-                  개당 원가
-                </div>
-                <div className="mt-1 text-lg font-black text-slate-900 tabular-nums">
-                  {formatNumber(chinaCalcSummary.unitCostKrw)}
-                </div>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                <div className="text-[11px] font-black text-slate-600">
-                  배수
-                </div>
-                <div className="mt-1 text-lg font-black text-slate-900 tabular-nums">
-                  {Number.isFinite(chinaCalcSummary.multiple)
+            <div className="mt-2 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(160px,1fr))]">
+              <KpiCard
+                label="수량"
+                value={formatNumber(chinaCalcSummary.qty)}
+              />
+              <KpiCard
+                label="전체 비용"
+                value={formatNumber(chinaCalcSummary.totalKrw)}
+                suffix="원"
+              />
+              <KpiCard
+                label="개당 원가"
+                value={formatNumber(chinaCalcSummary.unitCostKrw)}
+                suffix="원"
+              />
+              <KpiCard
+                label="배수"
+                value={
+                  Number.isFinite(chinaCalcSummary.multiple)
                     ? chinaCalcSummary.multiple.toFixed(2)
-                    : "-"}
-                </div>
-              </div>
+                    : "-"
+                }
+              />
             </div>
           ) : (
             <div className="mt-2 text-sm font-semibold text-slate-500">

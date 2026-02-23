@@ -65,13 +65,18 @@ function safeMoney(v: unknown) {
   return typeof v === "number" && Number.isFinite(v) ? v.toLocaleString() : "-";
 }
 
-function toNumString(v: number | null | undefined) {
-  return v == null || !Number.isFinite(v) ? "" : String(v);
+function toNumString(v: unknown) {
+  if (v == null) return "";
+  if (typeof v === "number") return Number.isFinite(v) ? String(v) : "";
+  if (typeof v === "string") return v; // ✅ BigDecimal 문자열 그대로 표시
+  return "";
 }
 
 function parseNumberOrUndef(raw: string) {
-  if (raw === "") return undefined;
-  const n = Number(raw);
+  if (raw.trim() === "") return undefined;
+
+  const normalized = raw.replace(/,/g, "");
+  const n = Number(normalized);
   return Number.isFinite(n) ? n : undefined;
 }
 

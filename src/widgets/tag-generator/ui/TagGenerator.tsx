@@ -4,12 +4,12 @@ import Button from "@/shared/ui/button/Button";
 import { toastStore } from "@/shared/model/toastStore";
 import { globalLoading } from "@/shared/model/globalLoading";
 import { Type } from "@sinclair/typebox";
-import { generateJsonWithSchema } from "@/shared/api/gemini/geminiService";
+import { generateJsonWithSchema } from "@/shared/api/openai/openaiService";
 import { withTimeout } from "@/shared/lib/async";
 
 const MODELS = {
-  PRIMARY: "gemini-3-pro-preview",
-  FALLBACK: "gemini-2.5-pro",
+  PRIMARY: "gpt-6-astra",
+  FALLBACK: "gpt-4.1",
 } as const;
 
 function normalizeTokens(input: string) {

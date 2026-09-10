@@ -5,7 +5,7 @@ import {
   generateImage,
   generateJsonWithSchema,
   Type,
-} from "@/shared/api/gemini/geminiService";
+} from "@/shared/api/openai/openaiService";
 
 function safeJoin(arr?: string[]) {
   return (arr ?? []).filter(Boolean).join(", ");

@@ -123,7 +123,7 @@ const Step2CutStudioCard: React.FC<Props> = ({
                 이미지 생성 모델
               </div>
               <div className="text-xs text-slate-500 mt-0.5">
-                무료(Flash) / 유료(Pro)
+                기본 / 고품질 · OpenAI API 사용량 과금
               </div>
             </div>
 
@@ -138,7 +138,7 @@ const Step2CutStudioCard: React.FC<Props> = ({
                     : "bg-white text-slate-700 border-slate-200",
                 ].join(" ")}
               >
-                무료
+                기본
               </button>
 
               <button
@@ -150,9 +150,7 @@ const Step2CutStudioCard: React.FC<Props> = ({
                     ? "bg-blue-600 text-white border-blue-600"
                     : "bg-white text-slate-700 border-slate-200",
                 ].join(" ")}
-              >
-                Pro
-              </button>
+              >고품질</button>
             </div>
           </div>
 

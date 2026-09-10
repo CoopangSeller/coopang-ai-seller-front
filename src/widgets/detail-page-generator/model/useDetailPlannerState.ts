@@ -9,7 +9,7 @@ import {
 import { buildCutPrompt } from "../lib/cutPrompts";
 import { useZipExport } from "@/features/file/file-export";
 import { useDraft } from "@/features/draft/model/useDraft";
-import { generateImage } from "@/shared/api/gemini/geminiService";
+import { generateImage } from "@/shared/api/openai/openaiService";
 import { isModelOverloadedError } from "@/shared/api/gemini/lib/isModelOverloadedError";
 import {
   planWithPolicy,
@@ -19,7 +19,7 @@ import {
 } from "./policy";
 import { STORAGE_KEYS } from "@/shared/config/storageKeys";
 import { toastStore } from "@/shared/model/toastStore";
-import { MissingGeminiApiKeyError } from "@/shared/lib/async";
+import { MissingOpenAIApiKeyError } from "@/shared/lib/async";
 
 /** draft 저장 키 */
 const DRAFT_KEY = STORAGE_KEYS.DETAIL_PLANNER_DRAFT;
@@ -71,10 +71,7 @@ export function useDetailPlannerState() {
 
   /** 모델 타입 선택 */
   function loadModelType(): ModelType {
-    // ✅ env 키가 있으면 기본은 3 pro
-    const hasEnvKey = !!import.meta.env.VITE_GEMINI_API_KEY;
-
-    return hasEnvKey ? ModelType.PAID : ModelType.FREE;
+    return ModelType.FREE;
   }
 
   const [modelType, setModelType] = useState<ModelType>(loadModelType());
@@ -471,7 +468,7 @@ export function useDetailPlannerState() {
           type: "error",
           title: "이미지 생성 실패",
           message:
-            "Gemini 응답에 이미지가 포함되지 않았습니다. (모델/키/안전필터 이슈 가능)",
+            "OpenAI 응답에 이미지가 포함되지 않았습니다. (모델/키/안전필터 이슈 가능)",
           durationMs: 5000,
         });
         throw new Error("Image generation returned null");
@@ -494,11 +491,11 @@ export function useDetailPlannerState() {
       if (latestRegenTokenRef.current[index] !== token) return;
 
       // ✅ 키 미설정이면 사용자에게 명확히 안내
-      if (e instanceof MissingGeminiApiKeyError) {
+      if (e instanceof MissingOpenAIApiKeyError) {
         toastStore.push({
           type: "error",
-          title: "Gemini API 키 미설정",
-          message: "VITE_GEMINI_API_KEY가 빌드/배포 환경에 주입되어야 합니다.",
+          title: "OpenAI API 키 미설정",
+          message: "서버의 OPENAI_API_KEY를 설정한 후 다시 실행해 주세요.",
           durationMs: 6000,
         });
       } else {

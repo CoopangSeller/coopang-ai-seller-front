@@ -1,4 +1,4 @@
 export enum ModelType {
-  FREE = "gemini-2.5-flash-image",
-  PAID = "gemini-3-pro-image-preview",
+  FREE = "gpt-image-2.5-flare",
+  PAID = "gpt-image-2.5-sunburst",
 }

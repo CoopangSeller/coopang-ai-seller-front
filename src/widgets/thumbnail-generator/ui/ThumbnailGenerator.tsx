@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { ReferenceImageUpload } from "@/features/file/image-upload";
 import { ModelType } from "@/shared/types";
-import { generateImage } from "@/shared/api/gemini/geminiService";
+import { generateImage } from "@/shared/api/openai/openaiService";
 
 import { useDraft } from "@/features/draft/model/useDraft";
 import { STORAGE_KEYS } from "@/shared/config/storageKeys";
@@ -200,7 +200,8 @@ const ThumbnailGenerator: React.FC = () => {
   });
 
   const config = draft.config;
-  const modelType = draft.modelType;
+  const modelType = draft.modelType === ModelType.PAID || String(draft.modelType) === "gemini-3-pro-image-preview"
+    ? ModelType.PAID : ModelType.FREE;
   const resultImage = draft.resultImage;
 
   const setConfig: React.Dispatch<
@@ -346,16 +347,14 @@ const ThumbnailGenerator: React.FC = () => {
                 checked={modelType === ModelType.FREE}
                 onChange={() => setModelType(ModelType.FREE)}
               />
-              무료
+              기본
             </label>
             <label className="flex items-center gap-2 font-bold text-blue-700">
               <input
                 type="radio"
                 checked={modelType === ModelType.PAID}
                 onChange={() => setModelType(ModelType.PAID)}
-              />
-              Pro
-            </label>
+              />고품질</label>
           </div>
         </div>
 

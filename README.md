@@ -30,7 +30,7 @@ React + Vite 기반 프론트엔드 프로젝트이며 **FSD(Feature-Sliced Desi
 git --version
 ```
 
-### ✔ Node.js 설치 (권장 v18 이상)
+### ✔ Node.js 설치 (권장 v22 이상)
 
 ```bash
 node -v
@@ -65,7 +65,7 @@ cd coopang-ai-seller-front
 <summary><b>STEP 3. 환경설정 파일 (.env.local)</b></summary>
 
 ```env
-VITE_GEMINI_API_KEY=YOUR_GEMINI_API_KEY_HERE
+OPENAI_API_KEY=YOUR_OPENAI_API_KEY_HERE
 VITE_API_BASE_URL=http://localhost:8080
 VITE_API_ENABLED=true
 ```
@@ -256,3 +256,17 @@ src/
 AI Sync Club은 쿠팡 판매자의
 👉 **상품 소싱 → 원가 계산 → AI 기획 → 썸네일 생성**
 전체 워크플로우 자동화를 목표로 제작되었습니다.
+
+
+## OpenAI API 연결
+
+텍스트 기획·태그는 GPT, 썸네일·상세페이지 이미지는 GPT Image를 사용합니다.
+.env.local의 OPENAI_API_KEY에 실제 키를 넣고 개발 서버를 재시작하세요. 키는 서버에서만 읽으며 VITE_ 접두사를 붙이지 않습니다.
+
+.env.example에서 모델 기본값을 확인할 수 있습니다. 기본/고품질 모두 OpenAI API 사용량에 따라 과금됩니다. 상품 참고사진은 PNG/JPEG/WebP를 지원하며 전체 요청은 4MB 이하여야 합니다. 정사각형과 9:16 비율을 유지합니다.
+
+Vercel에서는 OPENAI_API_KEY 환경변수와 /api/ai 서버 함수가 필요합니다. dist만 올리는 정적 호스팅으로는 생성 기능을 사용할 수 없습니다. 공개 서비스 운영 시 사용자 인증·사용량 제한을 이 API에도 연결하세요. 호스팅 요금제의 실행시간 및 응답 크기 제한에 따라 큰 이미지 생성이 실패할 수 있습니다.
+
+검증: npm run build 및 node --test server/openai.test.mjs. 실제 생성은 유효한 키와 모델 접근 권한이 필요합니다.
+
+공식 문서: [이미지 생성](https://developers.openai.com/api/docs/guides/image-generation), [구조화된 응답](https://developers.openai.com/api/docs/guides/structured-outputs).

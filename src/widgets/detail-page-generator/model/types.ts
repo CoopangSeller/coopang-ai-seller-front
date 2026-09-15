@@ -5,13 +5,48 @@ export enum PageLength {
   LONG = "9",
 }
 
-export type DetailShotKey = "cutout" | "lifestyle" | "model";
+export type ProductKind = "food" | "living" | "other";
+export type ReviewDecision = "pending" | "approved" | "excluded";
+export type EvidenceLevel = "confirmed" | "general" | "seller_check";
 
-export interface ProductShotConfig {
-  key: DetailShotKey;
-  label: string;
-  referenceImages?: string[]; // base64 dataUrl
-  prompt?: string; // 탭별 의도 입력
+export interface ResearchSource {
+  id: string;
+  title: string;
+  url: string;
+  kind: "official" | "market" | "video" | "article" | "other";
+}
+
+export interface SellingPoint {
+  id: string;
+  title: string;
+  description: string;
+  evidenceLevel: EvidenceLevel;
+  decision: ReviewDecision;
+  sourceIds: string[];
+}
+
+export interface ProductResearch {
+  categoryLabel: string;
+  summary: string;
+  seasonalCue: string;
+  recommendedRecipient: string;
+  customerQuestions: string[];
+  photoRoles: string[];
+  sellingPoints: SellingPoint[];
+  sources: ResearchSource[];
+}
+
+export type DesignStyleId = "catalog" | "heritage" | "natural";
+
+export interface DesignStyle {
+  id: DesignStyleId;
+  name: string;
+  description: string;
+  background: string;
+  surface: string;
+  text: string;
+  accent: string;
+  muted: string;
 }
 
 export type SegmentTemplate =
@@ -23,88 +58,78 @@ export type SegmentTemplate =
   | "DETAIL"
   | "HOW_TO"
   | "TRUST"
-  | "CTA";
+  | "CTA"
+  | "STORY";
 
-/**
- * 섹션 재생성 시 사용자 편집값(입력 분리)
- * - header/subcopy는 렌더링 텍스트로 고정
- * - visualRequest는 비주얼 지시로만 사용(렌더링 텍스트 금지)
- */
+export type SegmentLayout = "top" | "center" | "bottom";
+export type SegmentTone = "light" | "deep" | "accent";
+
 export type SegmentEdits = {
   headerText?: string;
   subcopyText?: string;
   visualRequest?: string;
 };
 
+export interface SegmentSnapshot {
+  keyMessage: string;
+  title: string;
+  logicalSections: string[];
+  visualPrompt: string;
+  imageUrl?: string;
+  promptOverride?: string;
+  edits?: SegmentEdits;
+  layout?: SegmentLayout;
+  tone?: SegmentTone;
+  createdAt: number;
+}
+
 export interface DetailImageSegment {
   id: string;
-  template: SegmentTemplate; // ✅ 추가
-  title: string; // 실제로 “표시될 수 있는” 헤드라인 후보
-  logicalSections: string[]; // 서브카피/아이콘 설명 후보
-  keyMessage: string; // 내부 주제(Theme) 용도로도 활용 (단, 메타 문자열 방지 로직 있음)
-  visualPrompt: string; // 인정 프롬프트(이미지 연출/구도)
-
-  /**
-   * 섹션 재생성 시 사용자 편집값(입력 분리)
-   * - header/subcopy는 렌더링 텍스트로 고정
-   * - visualRequest는 비주얼 지시로만 사용(렌더링 텍스트 금지)
-   */
+  template: SegmentTemplate;
+  title: string;
+  logicalSections: string[];
+  keyMessage: string;
+  visualPrompt: string;
+  layout?: SegmentLayout;
+  tone?: SegmentTone;
   edits?: SegmentEdits;
-
   imageUrl?: string;
   isGenerating?: boolean;
-
-  /** (legacy) 섹션별 보완 요청(비주얼 지시 전용) */
   promptOverride?: string;
-
-  /**
-   * 재생성 시 동일 결과를 피하기 위한 변이 토큰(렌더링 금지)
-   * - regenerateOne에서 매번 새 값으로 세팅
-   */
   regenNonce?: string;
+  history?: SegmentSnapshot[];
+  future?: SegmentSnapshot[];
+}
 
-  history?: Array<{
-    keyMessage: string;
-    title: string;
-    logicalSections: string[];
-    visualPrompt: string;
-    imageUrl?: string;
-    promptOverride?: string;
-    edits?: SegmentEdits;
-    createdAt: number;
-  }>;
+export interface DetailPlan {
+  recommendedLength: "5" | "7" | "9";
+  recommendedStyle: DesignStyleId;
+  strategyNote: string;
+  segments: DetailImageSegment[];
+}
 
-  // ✅ 추가: redo 스택
-  future?: Array<{
-    keyMessage: string;
-    title: string;
-    logicalSections: string[];
-    visualPrompt: string;
-    imageUrl?: string;
-    promptOverride?: string;
-    edits?: SegmentEdits;
-    createdAt: number;
-  }>;
+// 이전 저장본과 기존 보조 모듈이 깨지지 않도록 컷 관련 타입은 유지한다.
+export type DetailShotKey = "cutout" | "lifestyle" | "model";
+export interface ProductShotConfig {
+  key: DetailShotKey;
+  label: string;
+  referenceImages?: string[];
+  prompt?: string;
 }
 
 export interface ProductInfo {
   name: string;
   category: string;
+  productKind?: ProductKind;
+  sourceUrl?: string;
+  videoTranscript?: string;
   price: string;
   features: string;
-
   targetGender: string[];
   targetAge: string[];
-
   pageLength: PageLength;
-
-  referenceImages: string[]; // base64 dataUrl or url
-
+  referenceImages: string[];
   shots: Record<DetailShotKey, ProductShotConfig>;
-
-  /**
-   * Step3에서 사용자 추가 요청(상세 기획/생성에 반영)
-   * - 기존 상태/드래프트와 맞추기 위해 필수 필드로 둠(빈 문자열 가능)
-   */
   detailExtraPrompt: string;
+  pricing?: { originalPrice: string; salePrice: string };
 }

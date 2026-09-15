@@ -6,7 +6,9 @@ import { createAiHandler } from './server/openai.mjs';
 
 export default defineConfig(({ mode }) => {
   const env = { ...loadEnv(mode, '.', ''), ...process.env };
-  const middleware = (server: any) => server.middlewares.use('/api/ai', createAiHandler(env));
+  const middleware = (server: any) => {
+    server.middlewares.use('/api/ai', createAiHandler(env));
+  };
   return {
     server: { port: 3000, host: '127.0.0.1' },
     plugins: [react(), tailwindcss(), {

@@ -1,7 +1,7 @@
 import { withTimeout, TimeoutError} from "@/shared/lib/async";
 import { runWithConcurrency } from "@/shared/lib/async/runWithConcurrency";
 import { planDetailPage, generateDetailSectionImage } from "../api/detailPlannerGemini";
-import type { DetailImageSegment, ProductInfo } from "./types";
+import type { DetailImageSegment, ProductInfo, ProductResearch } from "./types";
 import { ModelType } from "@/shared/types";
 import type React from "react";
 
@@ -27,14 +27,39 @@ export async function planWithPolicy(args: {
   maxPlanMs: number;
 }) {
   const { info, maxPlanMs } = args;
+  const research: ProductResearch = {
+    categoryLabel: info.category,
+    summary: "",
+    seasonalCue: "이번 명절",
+    recommendedRecipient: "고마운 분",
+    customerQuestions: [],
+    photoRoles: [],
+    sellingPoints: (info.features || "")
+      .split(/\r?\n/)
+      .map((title, index) => ({
+        id: `legacy-${index + 1}`,
+        title,
+        description: title,
+        evidenceLevel: "seller_check" as const,
+        decision: "approved" as const,
+        sourceIds: [],
+      }))
+      .filter((point) => point.title.trim()),
+    sources: [],
+  };
 
   try {
-    return await withTimeout(() => planDetailPage(info, MODELS.PLAN_PRIMARY), maxPlanMs);
+    return (
+      await withTimeout(
+        () => planDetailPage(info, research, MODELS.PLAN_PRIMARY),
+        maxPlanMs,
+      )
+    ).segments;
   } catch (e) {
     if (!isTimeoutError(e)) throw e;
 
     return await withTimeout(
-      () => planDetailPage(info, MODELS.PLAN_FALLBACK),
+      async () => (await planDetailPage(info, research, MODELS.PLAN_FALLBACK)).segments,
       Math.min(maxPlanMs, 30_000),
     );
   }
@@ -58,9 +83,24 @@ export async function imageWithPolicy(args: {
     referenceImages,
   } = args;
 
+  const research: ProductResearch = {
+    categoryLabel: info.category,
+    summary: "",
+    seasonalCue: "이번 명절",
+    recommendedRecipient: "고마운 분",
+    customerQuestions: [],
+    photoRoles: [],
+    sellingPoints: [],
+    sources: [],
+  };
+
   return generateDetailSectionImage({
-    info, seg, modelType, referenceImages, imageSize: "2K", allowText: true,
-    overrideModel: modelType === ModelType.PAID ? MODELS.IMAGE_PRIMARY : MODELS.IMAGE_FALLBACK,
+    info,
+    research,
+    segment: seg,
+    styleId: "catalog",
+    modelType,
+    referenceImages,
   });
 }
 
